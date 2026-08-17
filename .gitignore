@@ -1,0 +1,26 @@
+# Sensitive portfolio / order data
+*.xlsx
+*.xls
+*.csv
+*.pdf
+*.json
+
+# Local runtime/archive folders
+data/
+uploads/
+archive/
+reports/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.ini
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
