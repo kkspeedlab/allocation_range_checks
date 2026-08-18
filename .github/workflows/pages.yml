@@ -27,14 +27,14 @@ jobs:
       - name: Apply allocation reconciliation patch
         run: python tools/patch_reconciliation.py
 
-      - name: Apply Wealth runtime and allocation fixes
+      - name: Apply Wealth runtime fixes
         run: python - <<'PY'
           from pathlib import Path
           p = Path('wealth.html')
           text = p.read_text(encoding='utf-8')
           tags = [
-              '<script src="wealth_runtime_fix.js"></script>',
-              '<script src="wealth_allocation_fix.js"></script>'
+              '<script src="wealth_component_normalizer.js"></script>',
+              '<script src="wealth_runtime_fix.js"></script>'
           ]
           for tag in tags:
               if tag not in text:
@@ -53,5 +53,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-# Wealth allocation runtime mapping verified and redeploy forced.
