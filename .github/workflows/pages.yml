@@ -27,18 +27,21 @@ jobs:
       - name: Apply allocation reconciliation patch
         run: python tools/patch_reconciliation.py
 
-      - name: Apply Wealth runtime fixes
+      - name: Apply Wealth runtime v2
         run: python - <<'PY'
           from pathlib import Path
           p = Path('wealth.html')
           text = p.read_text(encoding='utf-8')
-          tags = [
+          # Remove all previously injected Wealth helper scripts if present.
+          for tag in [
               '<script src="wealth_component_normalizer.js"></script>',
-              '<script src="wealth_runtime_fix.js"></script>'
-          ]
-          for tag in tags:
-              if tag not in text:
-                  text = text.replace('</body>', tag + '\n</body>')
+              '<script src="wealth_runtime_fix.js"></script>',
+              '<script src="wealth_allocation_fix.js"></script>'
+          ]:
+              text = text.replace(tag, '')
+          tag = '<script src="wealth_runtime_v2.js?v=20260818_1840"></script>'
+          if tag not in text:
+              text = text.replace('</body>', tag + '\n</body>')
           p.write_text(text, encoding='utf-8')
           PY
 
