@@ -36,6 +36,7 @@
   }
 
   function wealthAllocationState(rows) {
+    // IMPORTANT: only Wealth Portfolio is used. Wealth Strategy is ignored.
     const wealthRows = rows.filter(r => normalizedText(r.Strategy) === 'WEALTH PORTFOLIO' && r.Date !== null && r.Date !== undefined);
     if (!wealthRows.length) {
       const available = [...new Set(rows.map(r => clean(r.Strategy)).filter(Boolean))];
@@ -49,23 +50,52 @@
 
     function componentKey(name) {
       const x = normalizedText(name);
-      if (x === 'EQUITIES INCL COMMODITIES' || x === 'EQUITIES INCLUDING COMMODITIES') return 'eqcom';
-      if (x === 'FIXED INCOME - BONDS' || x === 'FIXED INCOME BONDS') return 'fi';
-      if (x === 'MONEY MARKET') return 'mm';
-      if (x === 'ALTERNATIVES') return 'alt';
+
+      // Direct Wealth Portfolio labels / harmless wording variants only.
+      // No combining of rows or use of Wealth Strategy values.
+      if (
+        x === 'EQUITIES INCL COMMODITIES' ||
+        x === 'EQUITIES INCLUDING COMMODITIES' ||
+        x === 'EQUITIES INC COMMODITIES' ||
+        x === 'EQUITIES INCL COMMODITY' ||
+        x === 'EQUITIES INC COMMODITY'
+      ) return 'eqcom';
+
+      if (
+        x === 'FIXED INCOME - BONDS' ||
+        x === 'FIXED INCOME BONDS' ||
+        x === 'FIXED INCOME'
+      ) return 'fi';
+
+      if (
+        x === 'MONEY MARKET' ||
+        x === 'MONEY MARKET AND LIQUIDITY' ||
+        x === 'MONEY MARKET LIQUIDITY'
+      ) return 'mm';
+
+      if (
+        x === 'ALTERNATIVES' ||
+        x === 'ALTERNATIVE INVESTMENTS' ||
+        x === 'ALTERNATIVES HEDGE FUNDS'
+      ) return 'alt';
+
       return null;
     }
 
     const state = {eqcom: NaN, fi: NaN, mm: NaN, alt: NaN, dateSerial: latest};
+    const matched = {};
     for (const r of latestRows) {
       const key = componentKey(r.Component);
       if (!key) continue;
       const w = weightPct(r.Weight);
-      if (Number.isFinite(w)) state[key] = w;
+      if (Number.isFinite(w)) {
+        state[key] = w;
+        matched[key] = clean(r.Component);
+      }
     }
 
     const missing = [];
-    if (!Number.isFinite(state.eqcom)) missing.push('Equities (Incl. Commodities)');
+    if (!Number.isFinite(state.eqcom)) missing.push('Equities incl. Commodities');
     if (!Number.isFinite(state.fi)) missing.push('Fixed Income - Bonds');
     if (!Number.isFinite(state.mm)) missing.push('Money Market');
     if (!Number.isFinite(state.alt)) missing.push('Alternatives');
@@ -73,6 +103,7 @@
       const found = latestRows.map(r => clean(r.Component) + ' [Weight=' + clean(r.Weight) + ']').filter(Boolean);
       throw new Error('Missing/unreadable Wealth Portfolio component(s): ' + missing.join(', ') + '. Rows found for latest date: ' + found.join('; '));
     }
+    state.matchedComponents = matched;
     return state;
   }
 
@@ -97,8 +128,8 @@
     el('overall').textContent = overallResult;
     el('pdf').disabled = false;
     el('json').disabled = false;
-    el('status').textContent = `Wealth check completed: ${ordersList.length} aggregated orders processed, ${unpricedCount} unpriced. Current allocations read: Equities ${fmtPct(state.eqcom)}, Fixed Income ${fmtPct(state.fi)}, Money Market ${fmtPct(state.mm)}, Alternatives ${fmtPct(state.alt)}. Overall ${overallResult}.`;
-    lastRecord = {check_id:id,timestamp:ts,account:'WEALTH',wealth_nav_eur:WEALTH_NAV,allocation_date:el('adate').textContent,portfolio_file:portfolioFile,allocation_file:allocationFile,orders_file:ordersFile,overall_result:overallResult,unpriced_orders:unpricedCount,results,orders:ordersList};
+    el('status').textContent = `Wealth check completed: ${ordersList.length} aggregated orders processed, ${unpricedCount} unpriced. Strategy used: Wealth Portfolio. Current allocations read: Equities ${fmtPct(state.eqcom)}, Fixed Income ${fmtPct(state.fi)}, Money Market ${fmtPct(state.mm)}, Alternatives ${fmtPct(state.alt)}. Overall ${overallResult}.`;
+    lastRecord = {check_id:id,timestamp:ts,account:'WEALTH',strategy_used:'Wealth Portfolio',wealth_nav_eur:WEALTH_NAV,allocation_date:el('adate').textContent,portfolio_file:portfolioFile,allocation_file:allocationFile,orders_file:ordersFile,overall_result:overallResult,unpriced_orders:unpricedCount,results,orders:ordersList};
   }
 
   window.runCheck = async function () {
