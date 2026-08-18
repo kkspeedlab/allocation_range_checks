@@ -1,39 +1,40 @@
 // Wealth-specific allocation reader.
-// Wealth uses separate Equities and Commodities rows, which are combined for the mandate control.
+// Read the dedicated "Wealth Portfolio" strategy exactly as stored in Capital_Allocations.
 (function () {
   window.allocationState = function(rows) {
-    const wealthRows = rows.filter(r => isWealthStrategy(r.Strategy) && r.Date !== null && r.Date !== undefined);
-    if (!wealthRows.length) throw new Error('No Wealth / Wealth Strategy rows were found in Capital_Allocations.');
+    const strategyName = 'WEALTH PORTFOLIO';
+    const wealthRows = rows.filter(r => norm(r.Strategy).toUpperCase() === strategyName && r.Date !== null && r.Date !== undefined);
+    if (!wealthRows.length) throw new Error('No Wealth Portfolio rows were found in Capital_Allocations.');
 
     const latest = Math.max(...wealthRows.map(r => num(r.Date)));
     const latestRows = wealthRows.filter(r => num(r.Date) === latest);
 
-    const weightFor = name => latestRows
-      .filter(r => norm(r.Component) === name)
-      .reduce((sum, r) => sum + num(r.Weight) * 100, 0);
-
-    const equities = weightFor('Equities');
-    const commodities = weightFor('Commodities');
-    const fixedIncome = weightFor('Fixed Income');
-    const moneyMarket = weightFor('Money Market & Liquidity');
-    const alternatives = weightFor('Alternatives');
-
-    const out = {
-      eqcom: equities + commodities,
-      fi: fixedIncome,
-      mm: moneyMarket,
-      alt: alternatives,
-      dateSerial: latest
+    // Wealth Portfolio now uses the same component names as the mandate controls.
+    const componentMap = {
+      'Equities (Incl. Commodities)': 'eqcom',
+      'Fixed Income - Bonds': 'fi',
+      'Money Market': 'mm',
+      'Alternatives': 'alt'
     };
 
-    // Fail visibly if the expected Wealth components were not found instead of silently returning zeroes.
-    const missing = [];
-    if (!latestRows.some(r => norm(r.Component) === 'Equities')) missing.push('Equities');
-    if (!latestRows.some(r => norm(r.Component) === 'Commodities')) missing.push('Commodities');
-    if (!latestRows.some(r => norm(r.Component) === 'Fixed Income')) missing.push('Fixed Income');
-    if (!latestRows.some(r => norm(r.Component) === 'Money Market & Liquidity')) missing.push('Money Market & Liquidity');
-    if (!latestRows.some(r => norm(r.Component) === 'Alternatives')) missing.push('Alternatives');
-    if (missing.length) throw new Error('Missing Wealth allocation component(s): ' + missing.join(', '));
+    const out = { eqcom: 0, fi: 0, mm: 0, alt: 0, dateSerial: latest };
+    const found = new Set();
+    for (const r of latestRows) {
+      const component = norm(r.Component);
+      const key = componentMap[component];
+      if (!key) continue;
+      out[key] = num(r.Weight) * 100;
+      found.add(key);
+    }
+
+    const expected = [
+      ['eqcom', 'Equities (Incl. Commodities)'],
+      ['fi', 'Fixed Income - Bonds'],
+      ['mm', 'Money Market'],
+      ['alt', 'Alternatives']
+    ];
+    const missing = expected.filter(([key]) => !found.has(key)).map(([, name]) => name);
+    if (missing.length) throw new Error('Missing Wealth Portfolio allocation component(s): ' + missing.join(', '));
 
     return out;
   };
