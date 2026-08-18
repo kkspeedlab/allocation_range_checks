@@ -3,21 +3,54 @@
   function el(id) { return document.getElementById(id); }
   function clean(v) { return String(v ?? '').trim(); }
   function upper(v) { return clean(v).toUpperCase(); }
+  function normalizedText(v) {
+    return upper(v)
+      .replace(/[–—]/g, '-')
+      .replace(/&/g, ' AND ')
+      .replace(/[().,_]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function weightPct(v) {
+    if (v === null || v === undefined || v === '') return NaN;
+    if (typeof v === 'number') return Math.abs(v) <= 1.5 ? v * 100 : v;
+    let s = String(v).trim().replace(/\s/g, '');
+    const hasPct = s.includes('%');
+    s = s.replace('%', '').replace(/,/g, '');
+    const n = Number(s);
+    if (!Number.isFinite(n)) return NaN;
+    if (hasPct) return n;
+    return Math.abs(n) <= 1.5 ? n * 100 : n;
+  }
+  function dateKey(v) {
+    if (v instanceof Date && Number.isFinite(v.getTime())) return v.getTime();
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const s = clean(v);
+    if (!s) return NaN;
+    const n = Number(s);
+    if (Number.isFinite(n)) return n;
+    const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+    const t = Date.parse(s);
+    return Number.isFinite(t) ? t : NaN;
+  }
 
   function wealthAllocationState(rows) {
-    const wealthRows = rows.filter(r => upper(r.Strategy) === 'WEALTH PORTFOLIO' && r.Date !== null && r.Date !== undefined);
+    const wealthRows = rows.filter(r => normalizedText(r.Strategy) === 'WEALTH PORTFOLIO' && r.Date !== null && r.Date !== undefined);
     if (!wealthRows.length) {
       const available = [...new Set(rows.map(r => clean(r.Strategy)).filter(Boolean))];
       throw new Error('No Strategy = Wealth Portfolio rows found in Capital_Allocations. Available strategies include: ' + available.slice(0,20).join(', '));
     }
 
-    const latest = Math.max(...wealthRows.map(r => num(r.Date)));
-    const latestRows = wealthRows.filter(r => num(r.Date) === latest);
+    const dated = wealthRows.map(r => ({r, k: dateKey(r.Date)})).filter(x => Number.isFinite(x.k));
+    if (!dated.length) throw new Error('Wealth Portfolio rows were found, but their Date values could not be read.');
+    const latest = Math.max(...dated.map(x => x.k));
+    const latestRows = dated.filter(x => x.k === latest).map(x => x.r);
 
     function componentKey(name) {
-      const x = upper(name).replace(/\s+/g, ' ');
-      if (x === 'EQUITIES (INCL. COMMODITIES)' || x === 'EQUITIES INCL. COMMODITIES') return 'eqcom';
-      if (x === 'FIXED INCOME - BONDS' || x === 'FIXED INCOME – BONDS') return 'fi';
+      const x = normalizedText(name);
+      if (x === 'EQUITIES INCL COMMODITIES' || x === 'EQUITIES INCLUDING COMMODITIES') return 'eqcom';
+      if (x === 'FIXED INCOME - BONDS' || x === 'FIXED INCOME BONDS') return 'fi';
       if (x === 'MONEY MARKET') return 'mm';
       if (x === 'ALTERNATIVES') return 'alt';
       return null;
@@ -27,10 +60,8 @@
     for (const r of latestRows) {
       const key = componentKey(r.Component);
       if (!key) continue;
-      let w = num(r.Weight);
-      // Weight may be stored as 0.3938 or 39.38. Normalize to percentage points.
-      if (Math.abs(w) <= 1.5) w *= 100;
-      state[key] = w;
+      const w = weightPct(r.Weight);
+      if (Number.isFinite(w)) state[key] = w;
     }
 
     const missing = [];
@@ -39,8 +70,8 @@
     if (!Number.isFinite(state.mm)) missing.push('Money Market');
     if (!Number.isFinite(state.alt)) missing.push('Alternatives');
     if (missing.length) {
-      const comps = latestRows.map(r => clean(r.Component)).filter(Boolean);
-      throw new Error('Missing Wealth Portfolio component(s): ' + missing.join(', ') + '. Components found for latest date: ' + comps.join(', '));
+      const found = latestRows.map(r => clean(r.Component) + ' [Weight=' + clean(r.Weight) + ']').filter(Boolean);
+      throw new Error('Missing/unreadable Wealth Portfolio component(s): ' + missing.join(', ') + '. Rows found for latest date: ' + found.join('; '));
     }
     return state;
   }
@@ -57,7 +88,7 @@
     const ts = new Date().toLocaleString();
     el('checkid').textContent = id;
     el('timestamp').textContent = ts;
-    el('adate').textContent = formatAllocDate(state.dateSerial);
+    el('adate').textContent = clean(state.displayDate || '') || String(state.dateSerial);
     el('pfile').textContent = portfolioFile;
     el('afile').textContent = allocationFile;
     el('ofile').textContent = ordersFile;
@@ -66,8 +97,8 @@
     el('overall').textContent = overallResult;
     el('pdf').disabled = false;
     el('json').disabled = false;
-    el('status').textContent = `Wealth check completed: ${ordersList.length} aggregated orders processed, ${unpricedCount} unpriced. Overall ${overallResult}.`;
-    lastRecord = {check_id:id,timestamp:ts,account:'WEALTH',wealth_nav_eur:WEALTH_NAV,allocation_date:formatAllocDate(state.dateSerial),portfolio_file:portfolioFile,allocation_file:allocationFile,orders_file:ordersFile,overall_result:overallResult,unpriced_orders:unpricedCount,results,orders:ordersList};
+    el('status').textContent = `Wealth check completed: ${ordersList.length} aggregated orders processed, ${unpricedCount} unpriced. Current allocations read: Equities ${fmtPct(state.eqcom)}, Fixed Income ${fmtPct(state.fi)}, Money Market ${fmtPct(state.mm)}, Alternatives ${fmtPct(state.alt)}. Overall ${overallResult}.`;
+    lastRecord = {check_id:id,timestamp:ts,account:'WEALTH',wealth_nav_eur:WEALTH_NAV,allocation_date:el('adate').textContent,portfolio_file:portfolioFile,allocation_file:allocationFile,orders_file:ordersFile,overall_result:overallResult,unpriced_orders:unpricedCount,results,orders:ordersList};
   }
 
   window.runCheck = async function () {
@@ -88,13 +119,14 @@
       if (!rows || !rows.length) throw new Error('HSBC portfolio data sheet was not recognized.');
 
       const state = wealthAllocationState(allocRows);
+      const matchingDates = allocRows.filter(r => normalizedText(r.Strategy) === 'WEALTH PORTFOLIO' && dateKey(r.Date) === state.dateSerial);
+      state.displayDate = matchingDates.length ? clean(matchingDates[0].Date) : '';
       const fxValue = rows.filter(x => norm(x['Asset Key']) && norm(x['Position Ccy']).toUpperCase() !== 'EUR').reduce((s,x)=>s+num(x['EOP Mkt Val Tot Cont Ccy']),0);
       state.fx = fxValue / WEALTH_NAV * 100;
 
       const deltas = {eqcom:0,fi:0,alt:0,mm:0};
       const detail = [];
       let unpricedCount = 0;
-
       for (const [sheet, ors] of Object.entries(o.sheets)) {
         for (const r of ors) {
           const side = norm(r['Stex Order Group']).toLowerCase();
