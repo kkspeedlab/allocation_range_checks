@@ -27,6 +27,17 @@ jobs:
       - name: Apply allocation reconciliation patch
         run: python tools/patch_reconciliation.py
 
+      - name: Apply Wealth runtime fix
+        run: python - <<'PY'
+          from pathlib import Path
+          p = Path('wealth.html')
+          text = p.read_text(encoding='utf-8')
+          tag = '<script src="wealth_runtime_fix.js"></script>'
+          if tag not in text:
+              text = text.replace('</body>', tag + '\n</body>')
+              p.write_text(text, encoding='utf-8')
+          PY
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
 
