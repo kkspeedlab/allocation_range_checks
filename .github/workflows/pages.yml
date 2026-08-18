@@ -27,18 +27,19 @@ jobs:
       - name: Apply allocation reconciliation patch
         run: python tools/patch_reconciliation.py
 
-      - name: Apply Wealth component mapping
-        run: python tools/patch_wealth_components.py
-
-      - name: Apply Wealth runtime fix
+      - name: Apply Wealth runtime and allocation fixes
         run: python - <<'PY'
           from pathlib import Path
           p = Path('wealth.html')
           text = p.read_text(encoding='utf-8')
-          tag = '<script src="wealth_runtime_fix.js"></script>'
-          if tag not in text:
-              text = text.replace('</body>', tag + '\n</body>')
-              p.write_text(text, encoding='utf-8')
+          tags = [
+              '<script src="wealth_runtime_fix.js"></script>',
+              '<script src="wealth_allocation_fix.js"></script>'
+          ]
+          for tag in tags:
+              if tag not in text:
+                  text = text.replace('</body>', tag + '\n</body>')
+          p.write_text(text, encoding='utf-8')
           PY
 
       - name: Configure GitHub Pages
