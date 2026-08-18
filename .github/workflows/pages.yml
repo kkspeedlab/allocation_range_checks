@@ -24,6 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Apply allocation reconciliation patch
+        run: python tools/patch_reconciliation.py
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
 
