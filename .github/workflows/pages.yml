@@ -27,6 +27,9 @@ jobs:
       - name: Apply allocation reconciliation patch
         run: python tools/patch_reconciliation.py
 
+      - name: Apply Wealth component mapping
+        run: python tools/patch_wealth_components.py
+
       - name: Apply Wealth runtime fix
         run: python - <<'PY'
           from pathlib import Path
