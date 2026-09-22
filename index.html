@@ -197,7 +197,7 @@ $('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('cl
 $('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){$('allocsource').textContent='Manual override selected';$('allocmeta').textContent=f.name+' — this will override the automatic SharePoint file for the next check.'}});
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${DISPLAY_ACCOUNT[a]}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
 window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
-trySilentAutoLoad();
+// Do not authenticate automatically on page load. Microsoft sign-in occurs only when the user explicitly clicks Sign in / Load Latest.
 </script>
 </body>
 </html>
