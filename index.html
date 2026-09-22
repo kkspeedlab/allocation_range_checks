@@ -18,7 +18,7 @@
   <div>
     <label>Current Portfolio Allocation</label>
     <div class="sourcebox"><strong id="allocsource">Not loaded</strong><small id="allocmeta">Sign in to SpeedLab Microsoft 365 to load the latest Combined Daily Allocation automatically.</small></div>
-    <div class="actions"><button id="mslogin" class="btn secondary" type="button">Sign in / Load Latest</button></div>
+    <div class="actions"><button id="mslogin" class="btn secondary" type="button">Microsoft: Sign in / Load Latest</button></div>
   </div>
   <div><label>Manual Combined Daily Allocation (fallback)</label><input id="combined" type="file" accept=".xlsx,.xls"><div class="note">If selected, this file overrides the automatic SharePoint allocation for this check.</div></div>
   <div><label>Proposed Orders</label><input id="orders" type="file" accept=".xlsx,.xls,.csv"></div>
@@ -152,9 +152,10 @@ async function runCheck(){
    let combined,source,combinedName;
    if(manual instanceof File){
      combined=await workbookFromFile(manual);source='Manual override (local only)';combinedName=manual.name;
-   } else {
-     if(!autoCombined)await loadLatestSharePoint(true);
+   } else if(autoCombined){
      combined=autoCombined;source='SharePoint automatic';combinedName=autoCombinedName;
+   } else {
+     throw new Error('No allocation loaded. Select a manual Combined Daily Allocation file, or separately click Sign in / Load Latest first.');
    }
    const parsed=parseCombined(combined),states=parsed.states;
    const o=await workbookFromFile(of);
@@ -197,7 +198,7 @@ function filterRows(account,button){document.querySelectorAll('.filter').forEach
 function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';return'PreTradeCheck_'+lastRecord.check_id.replace(/^PTC_/,'')+'_'+lastRecord.accounts_checked.join('-')}
 function savePdf(){if(!lastRecord)return;const old=document.title;document.title=archiveBaseName();window.print();setTimeout(()=>document.title=old,1000)}
 function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
-$('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('click',()=>loadLatestSharePoint(true).catch(e=>setStatus('Microsoft load error: '+(e?.message||e))));$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
+// AUTHENTICATION INVARIANT: only mslogin may invoke loadLatestSharePoint/graphToken. runbtn never authenticates.\n$('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('click',()=>loadLatestSharePoint(true).catch(e=>setStatus('Microsoft load error: '+(e?.message||e))));$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
 $('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){autoCombined=null;autoCombinedName='';autoCombinedDate='';$('allocsource').textContent='Manual override selected — LOCAL ONLY';$('allocmeta').textContent=f.name+' — Microsoft/SharePoint authentication will not be used for this check.';setStatus('Manual mode active. This check will run locally and will not request Microsoft authentication.')}});
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${DISPLAY_ACCOUNT[a]}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
 window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
