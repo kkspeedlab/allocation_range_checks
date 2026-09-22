@@ -50,7 +50,7 @@ const SHAREPOINT={
  sitePath:'/sites/Research&Development',
  folderPath:'General/Performance live/Monthly performance  Advisory 1/Advisory_Daily/Allocation/COMBINED'
 };
-const GRAPH_SCOPES=['User.Read','Files.Read','Sites.Read.All'];
+const GRAPH_SCOPES=['User.Read','Files.Read'];
 const msalApp=(typeof msal!=='undefined')?new msal.PublicClientApplication({
  auth:{clientId:ENTRA.clientId,authority:'https://login.microsoftonline.com/'+ENTRA.tenantId,redirectUri:ENTRA.redirectUri},
  cache:{cacheLocation:'sessionStorage',storeAuthStateInCookie:false}
