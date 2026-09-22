@@ -157,11 +157,14 @@ function controlResult(current,effect,c){if(c.min===null)return{current:null,del
 function orderAccountFromSheet(s){return accountKey(s)}
 async function runCheck(){
  const manual=$('combined').files[0], of=$('orders').files[0], pf=$('portfolio').files[0];
- if(!of){setStatus('Please select the Proposed Orders file.');return}
- $('runbtn').disabled=true;setStatus('Calculating…');
+ setStatus('Run clicked — Combined: '+(manual?manual.name:'NONE')+' | Orders: '+(of?of.name:'NONE'));
+ if(!manual&&!autoCombined){setStatus('Error: No Combined Daily Allocation is loaded. Select the manual Combined file first.');return}
+ if(!of){setStatus('Error: No Proposed Orders file is selected.');return}
+ $('runbtn').disabled=true;
+ setStatus('Reading '+(manual?manual.name:autoCombinedName)+' and '+of.name+'…');
  try{
    let combined,source,combinedName;
-   if(manual instanceof File){
+   if(manual){
      combined=await workbookFromFile(manual);source='Manual override (local only)';combinedName=manual.name;
    } else if(autoCombined){
      combined=autoCombined;source='SharePoint automatic';combinedName=autoCombinedName;
@@ -212,7 +215,7 @@ function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(
 // AUTHENTICATION INVARIANT: only mslogin may invoke loadLatestSharePoint/graphToken. runbtn never authenticates.\n$('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('click',()=>loadLatestSharePoint(true).catch(e=>setStatus('Microsoft load error: '+(e?.message||e))));$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
 $('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){autoCombined=null;autoCombinedName='';autoCombinedDate='';$('allocsource').textContent='Manual override selected — LOCAL ONLY';$('allocmeta').textContent=f.name+' — Microsoft authentication code is not loaded in manual mode.';setStatus('Manual mode active. This check is local-only. Microsoft authentication is loaded only if you click the Microsoft button.')}});
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${DISPLAY_ACCOUNT[a]}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
-window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
+window.addEventListener('error',e=>{console.error(e.error||e);setStatus('JavaScript error: '+(e.message||'Unknown error'));});window.addEventListener('unhandledrejection',e=>{console.error(e.reason||e);setStatus('JavaScript error: '+(e.reason?.message||String(e.reason)));});
 // Do not authenticate automatically on page load. Microsoft sign-in occurs only when the user explicitly clicks Sign in / Load Latest.
 </script>
 </body>
