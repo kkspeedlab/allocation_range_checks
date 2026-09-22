@@ -128,7 +128,6 @@ async function loadLatestSharePoint(interactive=false){
  setStatus('Latest Combined Daily Allocation loaded automatically from SharePoint.');
  return autoCombined;
 }
-async function trySilentAutoLoad(){try{if(msalApp){await msalApp.initialize();if(msalApp.getAllAccounts().length)await loadLatestSharePoint(false)}}catch(e){console.warn(e);setStatus('Automatic SharePoint load is available. Click “Sign in / Load Latest”, or use the manual Combined allocation fallback.')}}
 function combinedControls(s){return[
  {key:'eqcom',name:'Equities incl. Commodities',min:s.eqcom_min,max:s.eqcom_max},
  {key:'fi',name:'Fixed Income – Bonds',min:s.fi_min,max:s.fi_max},
