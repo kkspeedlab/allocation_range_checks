@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Allocation Range Pre-Trade Check</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.26.2/lib/msal-browser.min.js"></script>
 <style>
 :root{--navy:#17324d;--blue:#2f6fa3;--bg:#f4f6f9;--panel:#fff;--text:#243444;--muted:#6c7a89;--border:#dfe5eb;--green:#237a45;--red:#b42318;--amber:#9a6a00}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}header{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center}h1{font-size:21px;margin:0}.sub{font-size:12px;opacity:.8;margin-top:4px}.badge{background:#ffffff1f;padding:8px 12px;border-radius:18px;font-size:12px}.wrap{max-width:1500px;margin:auto;padding:22px}.panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:18px}.title{font-weight:700;color:var(--navy);margin-bottom:14px}.uploads{display:grid;grid-template-columns:1.25fr 1fr 1fr auto;gap:14px;align-items:end}.sourcebox{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:#f8fafc;min-height:62px}.sourcebox strong{display:block;color:var(--navy);margin-bottom:4px}.sourcebox small{color:var(--muted)}label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px}input[type=file]{width:100%;border:1px solid var(--border);border-radius:7px;padding:9px}.btn{border:0;border-radius:7px;padding:11px 18px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#edf2f6;color:var(--navy);border:1px solid var(--border)}.statusline{margin-top:12px;font-size:12px;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{border:1px solid var(--border);border-radius:9px;padding:14px;background:#fbfcfd}.card h3{margin:0 0 10px;color:var(--navy)}.metric{display:flex;justify-content:space-between;font-size:12px;margin:7px 0}.metric span:first-child{color:var(--muted)}.pill{display:inline-block;padding:5px 9px;border-radius:14px;font-weight:700;font-size:11px}.pass{background:#eaf7ef;color:var(--green)}.fail{background:#fdecec;color:var(--red)}.pending{background:#fff6df;color:var(--amber)}.neutral{background:#eef3f7;color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f0f4f8;color:var(--navy);text-align:left;padding:10px 9px;border-bottom:1px solid var(--border);white-space:nowrap}td{padding:10px 9px;border-bottom:1px solid #edf0f3}.num{text-align:right;font-variant-numeric:tabular-nums}.filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.filter{border:1px solid var(--border);background:#fff;color:var(--navy);border-radius:16px;padding:6px 11px;cursor:pointer}.filter.active{background:var(--navy);color:#fff}.reportgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:10px 12px}.field small{display:block;color:var(--muted);text-transform:uppercase;margin-bottom:4px}.field strong{font-size:13px;color:var(--navy)}.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}.note{font-size:11px;color:var(--muted);line-height:1.5}.scroll{overflow-x:auto}@media(max-width:900px){.uploads,.cards,.reportgrid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.uploads,.cards,.reportgrid{grid-template-columns:1fr}}@media print{header{background:#fff;color:#000;border-bottom:2px solid #222}.uploads,.filters,.actions,.note{display:none}.panel{border:0;padding:8px 0;margin:0}.wrap{padding:0}}
 </style>
@@ -51,10 +50,24 @@ const SHAREPOINT={
  folderPath:'General/Performance live/Monthly performance  Advisory 1/Advisory_Daily/Allocation/COMBINED'
 };
 const GRAPH_SCOPES=['User.Read','Files.Read','Sites.Read.All'];
-const msalApp=(typeof msal!=='undefined')?new msal.PublicClientApplication({
- auth:{clientId:ENTRA.clientId,authority:'https://login.microsoftonline.com/'+ENTRA.tenantId,redirectUri:ENTRA.redirectUri},
- cache:{cacheLocation:'sessionStorage',storeAuthStateInCookie:false}
-}):null;
+let msalApp=null;
+async function ensureMicrosoftAuthLibrary(){
+ if(msalApp)return msalApp;
+ if(typeof msal==='undefined'){
+   await new Promise((resolve,reject)=>{
+     const sc=document.createElement('script');
+     sc.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.26.2/lib/msal-browser.min.js';
+     sc.onload=resolve;sc.onerror=()=>reject(new Error('Could not load Microsoft authentication library.'));
+     document.head.appendChild(sc);
+   });
+ }
+ msalApp=new msal.PublicClientApplication({
+   auth:{clientId:ENTRA.clientId,authority:'https://login.microsoftonline.com/'+ENTRA.tenantId,redirectUri:ENTRA.redirectUri},
+   cache:{cacheLocation:'sessionStorage',storeAuthStateInCookie:false}
+ });
+ await msalApp.initialize();
+ return msalApp;
+}
 
 function setStatus(t){$('statusline').textContent=t}
 function norm(v){return String(v??'').trim()}
@@ -98,8 +111,7 @@ function parseCombined(c){
  return {states,date:combinedDate(c)};
 }
 async function graphToken(interactive=false){
- if(!msalApp)throw new Error('Microsoft authentication library did not load.');
- await msalApp.initialize();
+ await ensureMicrosoftAuthLibrary();
  let acct=msalApp.getAllAccounts()[0];
  if(!acct&&interactive){const r=await msalApp.loginPopup({scopes:GRAPH_SCOPES,prompt:'select_account'});acct=r.account}
  if(!acct)throw new Error('Microsoft sign-in is required.');
@@ -198,7 +210,7 @@ function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';return'PreTradeC
 function savePdf(){if(!lastRecord)return;const old=document.title;document.title=archiveBaseName();window.print();setTimeout(()=>document.title=old,1000)}
 function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
 // AUTHENTICATION INVARIANT: only mslogin may invoke loadLatestSharePoint/graphToken. runbtn never authenticates.\n$('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('click',()=>loadLatestSharePoint(true).catch(e=>setStatus('Microsoft load error: '+(e?.message||e))));$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
-$('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){autoCombined=null;autoCombinedName='';autoCombinedDate='';$('allocsource').textContent='Manual override selected — LOCAL ONLY';$('allocmeta').textContent=f.name+' — Microsoft/SharePoint authentication will not be used for this check.';setStatus('Manual mode active. This check will run locally and will not request Microsoft authentication.')}});
+$('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){autoCombined=null;autoCombinedName='';autoCombinedDate='';$('allocsource').textContent='Manual override selected — LOCAL ONLY';$('allocmeta').textContent=f.name+' — Microsoft authentication code is not loaded in manual mode.';setStatus('Manual mode active. This check is local-only. Microsoft authentication is loaded only if you click the Microsoft button.')}});
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${DISPLAY_ACCOUNT[a]}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
 window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
 // Do not authenticate automatically on page load. Microsoft sign-in occurs only when the user explicitly clicks Sign in / Load Latest.
