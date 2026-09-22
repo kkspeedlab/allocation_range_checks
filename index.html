@@ -150,8 +150,12 @@ async function runCheck(){
  $('runbtn').disabled=true;setStatus('Calculating…');
  try{
    let combined,source,combinedName;
-   if(manual){combined=await workbookFromFile(manual);source='Manual override';combinedName=manual.name}
-   else {if(!autoCombined)await loadLatestSharePoint(true);combined=autoCombined;source='SharePoint automatic';combinedName=autoCombinedName}
+   if(manual instanceof File){
+     combined=await workbookFromFile(manual);source='Manual override (local only)';combinedName=manual.name;
+   } else {
+     if(!autoCombined)await loadLatestSharePoint(true);
+     combined=autoCombined;source='SharePoint automatic';combinedName=autoCombinedName;
+   }
    const parsed=parseCombined(combined),states=parsed.states;
    const o=await workbookFromFile(of);
    let priceRows=null;
@@ -194,7 +198,7 @@ function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';return'PreTradeC
 function savePdf(){if(!lastRecord)return;const old=document.title;document.title=archiveBaseName();window.print();setTimeout(()=>document.title=old,1000)}
 function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
 $('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('click',()=>loadLatestSharePoint(true).catch(e=>setStatus('Microsoft load error: '+(e?.message||e))));$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
-$('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){$('allocsource').textContent='Manual override selected';$('allocmeta').textContent=f.name+' — this will override the automatic SharePoint file for the next check.'}});
+$('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){autoCombined=null;autoCombinedName='';autoCombinedDate='';$('allocsource').textContent='Manual override selected — LOCAL ONLY';$('allocmeta').textContent=f.name+' — Microsoft/SharePoint authentication will not be used for this check.';setStatus('Manual mode active. This check will run locally and will not request Microsoft authentication.')}});
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${DISPLAY_ACCOUNT[a]}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
 window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
 // Do not authenticate automatically on page load. Microsoft sign-in occurs only when the user explicitly clicks Sign in / Load Latest.
