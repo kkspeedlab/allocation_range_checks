@@ -65,8 +65,21 @@ async function loadLatestCombined(){
   const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token,'Document library lookup');
   const drive=drives.value.find(d=>/freigegebene dokumente|documents/i.test(d.name))||drives.value[0];
   if(!drive)throw new Error('SharePoint document library was not found.');
-  const enc=MS365.folderPath.split('/').map(encodeURIComponent).join('/');
-  const listing=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root:/'+enc+':/children?$select=id,name,file,lastModifiedDateTime&$top=200',token,'COMBINED folder lookup');
+  const parts=MS365.folderPath.split('/').filter(Boolean);
+  let parentId='root';
+  for(const part of parts){
+   const url=parentId==='root'
+    ?'https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root/children?$select=id,name,folder'
+    :'https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+parentId+'/children?$select=id,name,folder';
+   const children=await graphJson(url,token,'Folder lookup: '+part);
+   const next=(children.value||[]).find(x=>x.folder&&norm(x.name).toLowerCase()===part.toLowerCase());
+   if(!next){
+    const available=(children.value||[]).filter(x=>x.folder).map(x=>x.name).slice(0,20).join(', ');
+    throw new Error('Folder "'+part+'" was not found under the current SharePoint location.'+(available?' Available folders: '+available:''));
+   }
+   parentId=next.id;
+  }
+  const listing=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+parentId+'/children?$select=id,name,file,lastModifiedDateTime&$top=200',token,'COMBINED folder contents');
   const files=(listing.value||[]).filter(x=>x.file&&/^Combined_Daily_Allocation_\d{8}\.xlsx$/i.test(x.name)).sort((a,b)=>b.name.localeCompare(a.name));
   if(!files.length)throw new Error('No Combined_Daily_Allocation_YYYYMMDD.xlsx file was found.');
   const item=files[0],resp=await fetch('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+item.id+'/content',{headers:{Authorization:'Bearer '+token}});
