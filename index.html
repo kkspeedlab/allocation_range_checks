@@ -63,8 +63,12 @@ async function loadLatestCombined(){
   const token=await graphToken();
   const site=await graphJson('https://graph.microsoft.com/v1.0/sites/'+MS365.hostname+':'+MS365.sitePath+'?$select=id',token,'SharePoint site lookup');
   const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token,'Document library lookup');
-  const drive=drives.value.find(d=>/freigegebene dokumente|documents/i.test(d.name))||drives.value[0];
-  if(!drive)throw new Error('SharePoint document library was not found.');
+  const candidates=(drives.value||[]).filter(d=>!/teams wiki data/i.test(d.name));
+  const drive=candidates.find(d=>/freigegebene dokumente|shared documents|documents|dokumente/i.test(d.name));
+  if(!drive){
+   const names=(drives.value||[]).map(d=>d.name).join(', ');
+   throw new Error('Main SharePoint document library was not identified. Available libraries: '+names);
+  }
   setStatus('Microsoft 365 connected. Searching document library "'+drive.name+'" for the latest Combined Allocation…');
   const parts=MS365.folderPath.split('/').filter(Boolean);
   let parentId='root';
