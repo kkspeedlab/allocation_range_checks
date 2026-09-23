@@ -42,7 +42,7 @@ function allocationAccount(v){const u=norm(v).toUpperCase();return ACCOUNT_ORDER
 function allocationState(rows,account){const relevant=rows.filter(r=>allocationAccount(r.Strategy)===account&&ALLOC_COMPONENTS[norm(r.Component)]&&r.Date!==null&&r.Date!==undefined);if(!relevant.length)throw new Error('No Capital_Allocations rows found for '+account+'.');const latest=Math.max(...relevant.map(r=>num(r.Date)));const latestRows=relevant.filter(r=>num(r.Date)===latest);const out={nav:0,eqcom:0,fi:0,alt:0,mm:0,dateSerial:latest};for(const r of latestRows){const k=ALLOC_COMPONENTS[norm(r.Component)];out[k]=num(r.Weight)*100;out[k+'_amount']=num(r.Amount);out.nav+=num(r.Amount)}if(!out.nav)throw new Error('Allocation Amount total is zero for '+account+'.');return out}
 function excelSerialToDate(serial){const d=new Date((Number(serial)-25569)*86400*1000);return Number.isFinite(d.getTime())?d:null}
 function formatAllocDate(serial){const d=excelSerialToDate(serial);return d?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):String(serial)}
-const UBS_ACCOUNT_MAP={'0206-0000658778.S1':'ELE','0206-0000658780.S1':'ADV','0206-0000658773.S1':'ENV'};
+const UBS_ACCOUNT_MAP={'0206-0000658778.S1':'ELE','0206-0000658780.S1':'ENV','0206-0000658773.S1':'ADV'};
 function accountFromSheet(s){const u=norm(s).toUpperCase();return ACCOUNT_ORDER.find(a=>u===a)||UBS_ACCOUNT_MAP[u]||null}
 function normalizeOrderRows(sheetName,rows){
  const account=accountFromSheet(sheetName);
