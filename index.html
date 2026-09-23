@@ -66,8 +66,6 @@ function normalizeOrderRows(sheetName,rows){
  }).filter(r=>norm(r.Asset)&&num(r.Quantity)&&['buy','sell'].includes(norm(r['Stex Order Group']).toLowerCase()));
  return [account,mapped];
 }
-function bestMatch(rows,account,isin){return rows.find(x=>norm(x.account).toUpperCase()===account&&(normIsin(x.Asset_Key_Base)===isin||normIsin(x['Asset Key'])===isin))||null}
-function valueOrder(match,qty){if(!match)return{value:null,source:'Unpriced'};const eq=num(match['EOP Qty']),ev=num(match['EOP Mkt Val Tot Cont Ccy']);if(eq&&ev)return{value:Math.abs(qty)*Math.abs(ev/eq),source:'HSBC EOP'};const sq=num(match['SOP Qty']),sv=num(match['SOP Mkt Val Cont Ccy']);if(sq&&sv)return{value:Math.abs(qty)*Math.abs(sv/sq),source:'HSBC SOP fallback'};return{value:null,source:'Unpriced'}}
 async function yahooQuote(isin){if(yahooCache.has(isin))return yahooCache.get(isin);try{const r=await fetch(YAHOO_API+'?isin='+encodeURIComponent(isin));const j=await r.json();if(!r.ok||!j.ok||!Number.isFinite(Number(j.price_eur)))throw new Error();yahooCache.set(isin,j);return j}catch(e){yahooCache.set(isin,null);return null}}
 function yahooClass(q){const k=norm(q?.allocation_class).toLowerCase();if(k==='fi')return{cls:'Yahoo inferred Fixed Income',key:'fi'};if(k==='alt')return{cls:'Yahoo inferred Alternatives',key:'alt'};return{cls:'Yahoo inferred Equities/Commodities',key:'eqcom'}}
 function controlResultPct(current,effect,c){const projected=current+effect;if(c.min===null||c.max===null)return{current,delta:effect,projected,headroom:null,status:'PASS'};const headroom=Math.min(projected-c.min,c.max-projected);return{current,delta:effect,projected,headroom,status:(projected>=c.min&&projected<=c.max)?'PASS':'FAIL'}}
