@@ -65,6 +65,7 @@ async function loadLatestCombined(){
   const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token,'Document library lookup');
   const drive=drives.value.find(d=>/freigegebene dokumente|documents/i.test(d.name))||drives.value[0];
   if(!drive)throw new Error('SharePoint document library was not found.');
+  setStatus('Microsoft 365 connected. Searching document library "'+drive.name+'" for the latest Combined Allocation…');
   const parts=MS365.folderPath.split('/').filter(Boolean);
   let parentId='root';
   for(const part of parts){
@@ -74,8 +75,8 @@ async function loadLatestCombined(){
    const children=await graphJson(url,token,'Folder lookup: '+part);
    const next=(children.value||[]).find(x=>x.folder&&norm(x.name).toLowerCase()===part.toLowerCase());
    if(!next){
-    const available=(children.value||[]).filter(x=>x.folder).map(x=>x.name).slice(0,20).join(', ');
-    throw new Error('Folder "'+part+'" was not found under the current SharePoint location.'+(available?' Available folders: '+available:''));
+    const items=(children.value||[]).map(x=>(x.folder?'[folder] ':'[file] ')+x.name).slice(0,30);
+    throw new Error('Folder "'+part+'" was not found in document library "'+drive.name+'". '+(items.length?'Items at this level: '+items.join(', '):'No child items were returned at this level.'));
    }
    parentId=next.id;
   }
