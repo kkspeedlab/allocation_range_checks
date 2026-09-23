@@ -56,7 +56,7 @@ async function ensureMicrosoftAuthLibrary(){
  if(typeof msal==='undefined'){
    await new Promise((resolve,reject)=>{
      const sc=document.createElement('script');
-     sc.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.26.2/lib/msal-browser.min.js';
+     sc.src='https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js';
      sc.onload=resolve;sc.onerror=()=>reject(new Error('Could not load Microsoft authentication library.'));
      document.head.appendChild(sc);
    });
@@ -212,7 +212,7 @@ function filterRows(account,button){document.querySelectorAll('.filter').forEach
 function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';return'PreTradeCheck_'+lastRecord.check_id.replace(/^PTC_/,'')+'_'+lastRecord.accounts_checked.join('-')}
 function savePdf(){if(!lastRecord)return;const old=document.title;document.title=archiveBaseName();window.print();setTimeout(()=>document.title=old,1000)}
 function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
-// AUTHENTICATION INVARIANT: only mslogin may invoke loadLatestSharePoint/graphToken. runbtn never authenticates.\n$('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('click',()=>loadLatestSharePoint(true).catch(e=>setStatus('Microsoft load error: '+(e?.message||e))));$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
+// AUTHENTICATION INVARIANT: only mslogin may invoke loadLatestSharePoint/graphToken. runbtn never authenticates.\n$('runbtn').addEventListener('click',runCheck);$('mslogin').addEventListener('click',async()=>{setStatus('Starting Microsoft sign-in…');$('mslogin').disabled=true;try{await loadLatestSharePoint(true)}catch(e){console.error(e);setStatus('Microsoft load error: '+(e?.message||e))}finally{$('mslogin').disabled=false}});$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
 $('combined').addEventListener('change',()=>{const f=$('combined').files[0];if(f){autoCombined=null;autoCombinedName='';autoCombinedDate='';$('allocsource').textContent='Manual override selected — LOCAL ONLY';$('allocmeta').textContent=f.name+' — Microsoft authentication code is not loaded in manual mode.';setStatus('Manual mode active. This check is local-only. Microsoft authentication is loaded only if you click the Microsoft button.')}});
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${DISPLAY_ACCOUNT[a]}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
 window.addEventListener('error',e=>{console.error(e.error||e);setStatus('JavaScript error: '+(e.message||'Unknown error'));});window.addEventListener('unhandledrejection',e=>{console.error(e.reason||e);setStatus('JavaScript error: '+(e.reason?.message||String(e.reason)));});
