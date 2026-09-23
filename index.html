@@ -48,9 +48,23 @@ async function graphToken(){
  if(!msalApp)throw new Error('Microsoft sign-in library did not load.');
  await msalApp.initialize();
  let account=msalApp.getAllAccounts()[0];
- if(account){try{return (await msalApp.acquireTokenSilent({scopes:['User.Read','Files.ReadWrite','Sites.Read.All'],account})).accessToken}catch(e){}}
- const r=await msalApp.loginPopup({scopes:['User.Read','Files.ReadWrite','Sites.Read.All'],prompt:'select_account'});
+ if(account){try{return (await msalApp.acquireTokenSilent({scopes:['User.Read','Files.Read','Sites.Read.All'],account})).accessToken}catch(e){}}
+ const r=await msalApp.loginPopup({scopes:['User.Read','Files.Read','Sites.Read.All'],prompt:'select_account'});
  return r.accessToken;
+}
+async function graphWriteToken(){
+ if(!msalApp)throw new Error('Microsoft sign-in library did not load.');
+ await msalApp.initialize();
+ let account=msalApp.getAllAccounts()[0];
+ if(!account){
+  const login=await msalApp.loginPopup({scopes:['User.Read','Files.Read','Sites.Read.All'],prompt:'select_account'});
+  account=login.account||msalApp.getAllAccounts()[0];
+ }
+ try{
+  return (await msalApp.acquireTokenSilent({scopes:['Files.ReadWrite','Sites.Read.All'],account})).accessToken;
+ }catch(e){
+  return (await msalApp.acquireTokenPopup({scopes:['Files.ReadWrite','Sites.Read.All'],account})).accessToken;
+ }
 }
 async function graphJson(url,token,stage='Microsoft 365'){
  const r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
@@ -259,7 +273,7 @@ async function archivePdfToSharePoint(){
  if(!lastRecord)return;
  const el=$('archivestatus');el.textContent='SAVING…';
  try{
-  const token=await graphToken();
+  const token=await graphWriteToken();
   const {drive,folder}=await findReportFolder(token);
   const filename=archiveBaseName()+'.pdf',blob=pdfBlobFromRecord();
   const url='https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+folder.id+':/'+encodeURIComponent(filename)+':/content';
