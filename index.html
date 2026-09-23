@@ -6,6 +6,8 @@
 <title>Allocation Range Pre-Trade Check</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root{--navy:#17324d;--blue:#2f6fa3;--bg:#f4f6f9;--panel:#fff;--text:#243444;--muted:#6c7a89;--border:#dfe5eb;--green:#237a45;--red:#b42318;--amber:#9a6a00}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}header{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center}h1{font-size:21px;margin:0}.sub{font-size:12px;opacity:.8;margin-top:4px}.badge{background:#ffffff1f;padding:8px 12px;border-radius:18px;font-size:12px}.wrap{max-width:1500px;margin:auto;padding:22px}.panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:18px}.title{font-weight:700;color:var(--navy);margin-bottom:14px}.uploads{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end}label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px}input[type=file]{width:100%;border:1px solid var(--border);border-radius:7px;padding:9px}.btn{border:0;border-radius:7px;padding:11px 18px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#edf2f6;color:var(--navy);border:1px solid var(--border)}.statusline{margin-top:12px;font-size:12px;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{border:1px solid var(--border);border-radius:9px;padding:14px;background:#fbfcfd}.card h3{margin:0 0 10px;color:var(--navy)}.metric{display:flex;justify-content:space-between;font-size:12px;margin:7px 0}.metric span:first-child{color:var(--muted)}.pill{display:inline-block;padding:5px 9px;border-radius:14px;font-weight:700;font-size:11px}.pass{background:#eaf7ef;color:var(--green)}.fail{background:#fdecec;color:var(--red)}.pending{background:#fff6df;color:var(--amber)}.neutral{background:#eef3f7;color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f0f4f8;color:var(--navy);text-align:left;padding:10px 9px;border-bottom:1px solid var(--border);white-space:nowrap}td{padding:10px 9px;border-bottom:1px solid #edf0f3}.num{text-align:right;font-variant-numeric:tabular-nums}.filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.filter{border:1px solid var(--border);background:#fff;color:var(--navy);border-radius:16px;padding:6px 11px;cursor:pointer}.filter.active{background:var(--navy);color:#fff}.reportgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:10px 12px}.field small{display:block;color:var(--muted);text-transform:uppercase;margin-bottom:4px}.field strong{font-size:13px;color:var(--navy)}.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}.note{font-size:11px;color:var(--muted);line-height:1.5}.scroll{overflow-x:auto}@media(max-width:900px){.uploads,.cards,.reportgrid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.uploads,.cards,.reportgrid{grid-template-columns:1fr}}@media print{header{background:#fff;color:#000;border-bottom:2px solid #222}.uploads,.filters,.actions,.note{display:none}.panel{border:0;padding:8px 0;margin:0}.wrap{padding:0}}
 .manual-attention{outline:2px solid var(--accent,#c69214);outline-offset:-2px;background:#fff8df}
@@ -19,7 +21,7 @@
 <section class="panel"><div class="title">2. Accounts</div><div class="cards" id="cards"></div></section>
 <section class="panel"><div class="title">3. Projected Allocation Ranges</div><div class="filters"><button class="filter active" data-account="ALL">All</button><button class="filter" data-account="ELE">ELE</button><button class="filter" data-account="ADV">ADV</button><button class="filter" data-account="ENV">ENV</button><button class="filter" data-account="JOINT">JOINT</button><button class="filter" data-account="COMPANY">Company</button><button class="filter" data-account="PERSONAL">Personal</button></div><div class="scroll"><table><thead><tr><th>Account</th><th>Control</th><th class="num">Current</th><th class="num">Trade Effect</th><th class="num">Projected</th><th class="num">Min</th><th class="num">Max</th><th class="num">Headroom</th><th>Status</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
 <section class="panel"><div class="title">4. Order Valuation Detail</div><div class="scroll"><table><thead><tr><th>Account</th><th>Side</th><th>ISIN</th><th>Description</th><th>Classification</th><th class="num">Quantity</th><th class="num">EUR Value</th><th>Price Source</th><th>Status</th></tr></thead><tbody id="orderbody"></tbody></table></div></section>
-<section class="panel"><div class="title">5. Archive / Reporting</div><div class="reportgrid"><div class="field"><small>Check ID</small><strong id="checkid">Not generated</strong></div><div class="field"><small>Check Date / Time</small><strong id="timestamp">—</strong></div><div class="field"><small>Combined Allocation File</small><strong id="pfile">—</strong></div><div class="field"><small>Allocation Date</small><strong id="adate">—</strong></div><div class="field"><small>Orders File</small><strong id="ofile">—</strong></div><div class="field"><small>Accounts Checked</small><strong id="accountschecked">—</strong></div><div class="field"><small>Mandatory Controls</small><strong>7 per account</strong></div><div class="field"><small>Unpriced Orders</small><strong id="unpriced">—</strong></div><div class="field"><small>Overall Result</small><strong id="overall">NOT RUN</strong></div></div><div class="actions"><button id="pdf" class="btn primary" type="button" disabled>Print / Save PDF Report</button><button id="jsonbtn" class="btn secondary" type="button" disabled>Export Calculation Record (JSON)</button></div></section>
+<section class="panel"><div class="title">5. Archive / Reporting</div><div class="reportgrid"><div class="field"><small>Check ID</small><strong id="checkid">Not generated</strong></div><div class="field"><small>Check Date / Time</small><strong id="timestamp">—</strong></div><div class="field"><small>Combined Allocation File</small><strong id="pfile">—</strong></div><div class="field"><small>Allocation Date</small><strong id="adate">—</strong></div><div class="field"><small>Orders File</small><strong id="ofile">—</strong></div><div class="field"><small>Accounts Checked</small><strong id="accountschecked">—</strong></div><div class="field"><small>Mandatory Controls</small><strong>7 per account</strong></div><div class="field"><small>Unpriced Orders</small><strong id="unpriced">—</strong></div><div class="field"><small>Overall Result</small><strong id="overall">NOT RUN</strong></div><div class="field"><small>Shared Report Archive</small><strong id="archivestatus">NOT SAVED</strong></div></div><div class="actions"><button id="pdf" class="btn primary" type="button" disabled>Print / Save PDF Report</button><button id="jsonbtn" class="btn secondary" type="button" disabled>Export Calculation Record (JSON)</button></div></section>
 <section class="panel"><div class="title">6. Control Rules</div><p class="note">Equities incl. Commodities: 25–65%. Fixed Income – Bonds: 15–60%. Alternatives / Hedge Funds: 0–40%. Foreign Currencies: 0–70%. Money Market: 0–60%. Eligible Investment Universe: PASS. Concentration Limit: PASS. All seven controls must PASS for an account to PASS.</p><p class="note"><strong>Current allocation source:</strong> Combined Daily Allocation supplies combined NAV, allocation, currency exposure, account ranges and held-asset EUR unit prices across HSBC, UBS and JPM. Yahoo is used only when an ISIN is absent from Asset Detail. Foreign-currency trade impact assumes non-EUR purchases are funded from EUR cash and non-EUR sale proceeds are converted back to EUR.</p></section>
 </main>
 <script>
@@ -38,15 +40,16 @@ const MS365={
  tenantId:'572dc356-734c-4a91-9e41-33f2e8e48071',
  hostname:'speedlabag.sharepoint.com',
  sitePath:'/sites/Research&Development',
- folderPath:'General/Performance live/Monthly performance  Advisory 1/Advisory_Daily/Allocation/COMBINED'
+ folderPath:'General/Performance live/Monthly performance  Advisory 1/Advisory_Daily/Allocation/COMBINED',
+ reportFolderName:'Pre_Trade_Check_Reports'
 };
 const msalApp=typeof msal!=='undefined'?new msal.PublicClientApplication({auth:{clientId:MS365.clientId,authority:'https://login.microsoftonline.com/'+MS365.tenantId,redirectUri:location.origin+location.pathname},cache:{cacheLocation:'sessionStorage'}}):null;
 async function graphToken(){
  if(!msalApp)throw new Error('Microsoft sign-in library did not load.');
  await msalApp.initialize();
  let account=msalApp.getAllAccounts()[0];
- if(account){try{return (await msalApp.acquireTokenSilent({scopes:['User.Read','Files.Read','Sites.Read.All'],account})).accessToken}catch(e){}}
- const r=await msalApp.loginPopup({scopes:['User.Read','Files.Read','Sites.Read.All'],prompt:'select_account'});
+ if(account){try{return (await msalApp.acquireTokenSilent({scopes:['User.Read','Files.ReadWrite','Sites.Read.All'],account})).accessToken}catch(e){}}
+ const r=await msalApp.loginPopup({scopes:['User.Read','Files.ReadWrite','Sites.Read.All'],prompt:'select_account'});
  return r.accessToken;
 }
 async function graphJson(url,token,stage='Microsoft 365'){
@@ -186,7 +189,93 @@ function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFil
  $('checkid').textContent=id;$('timestamp').textContent=ts;$('pfile').textContent=portfolioFile;$('adate').textContent=allocDate;$('ofile').textContent=ordersFile;$('accountschecked').textContent=accounts.join(', ');$('unpriced').textContent=unpriced;$('overall').textContent=overall;$('pdf').disabled=false;$('jsonbtn').disabled=false;
  setStatus(`Check completed: ${orders.length} orders processed. Overall ${overall}.`);
  lastRecord={check_id:id,timestamp:ts,portfolio_file:portfolioFile,allocation_file:allocationFile,allocation_date:allocDate,orders_file:ordersFile,accounts_checked:accounts,overall_result:overall,unpriced_orders:unpriced,review_orders:reviewCount,reconciliation,results,orders};
+ $('archivestatus').textContent='PENDING';
+ setTimeout(archivePdfToSharePoint,0);
 }
+
+function pdfBlobFromRecord(){
+ if(!lastRecord)throw new Error('No completed check is available.');
+ if(!window.jspdf?.jsPDF)throw new Error('PDF generator did not load.');
+ const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+ const r=lastRecord;
+ doc.setFontSize(16);doc.text('Allocation Range Pre-Trade Check',14,14);
+ doc.setFontSize(9);
+ doc.text('Check ID: '+r.check_id,14,21);
+ doc.text('Date / Time: '+r.timestamp,14,26);
+ doc.text('Combined Allocation: '+r.portfolio_file,14,31);
+ doc.text('Allocation Date: '+r.allocation_date,14,36);
+ doc.text('Orders File: '+r.orders_file,14,41);
+ doc.text('Accounts: '+r.accounts_checked.join(', '),14,46);
+ doc.text('Overall Result: '+r.overall_result+'   |   Unpriced: '+r.unpriced_orders+'   |   Review: '+r.review_orders,14,51);
+
+ doc.setFontSize(11);doc.text('Projected Allocation Ranges',14,59);
+ doc.autoTable({
+  startY:63,
+  head:[['Account','Control','Current','Trade Effect','Projected','Min','Max','Headroom','Status']],
+  body:r.results.map(x=>[
+   x.account,x.control,fmtPct(x.current),
+   x.delta===null?'—':(x.delta>=0?'+':'')+fmtPct(x.delta),
+   fmtPct(x.projected),x.min===null?'—':x.min+'%',x.max===null?'—':x.max+'%',
+   x.headroom===null?'—':fmtPct(x.headroom),x.status
+  ]),
+  styles:{fontSize:7,cellPadding:1.5},
+  headStyles:{fillColor:[23,50,77]},
+  margin:{left:14,right:14}
+ });
+ let y=doc.lastAutoTable.finalY+8;
+ if(y>180){doc.addPage();y=14}
+ doc.setFontSize(11);doc.text('Order Valuation Detail',14,y);
+ doc.autoTable({
+  startY:y+4,
+  head:[['Account','Side','ISIN','Description','Classification','CCY','Quantity','EUR Value','Price Source','Status']],
+  body:r.orders.map(o=>[
+   o.account,o.side,o.isin,o.description||'',o.classification||'',o.currency||'',
+   Number(o.quantity).toLocaleString('en-GB'),
+   o.eur_value===null?'—':fmtMoney(o.eur_value),o.price_source,o.status
+  ]),
+  styles:{fontSize:7,cellPadding:1.4,overflow:'linebreak'},
+  headStyles:{fillColor:[23,50,77]},
+  columnStyles:{3:{cellWidth:45},4:{cellWidth:35}},
+  margin:{left:14,right:14}
+ });
+ const pages=doc.getNumberOfPages();
+ for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFontSize(7);doc.text('Page '+p+' of '+pages,270,202)}
+ return doc.output('blob');
+}
+async function findReportFolder(token){
+ const site=await graphJson('https://graph.microsoft.com/v1.0/sites/'+MS365.hostname+':'+MS365.sitePath+'?$select=id',token,'SharePoint site lookup');
+ const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token,'Document library lookup');
+ const candidates=(drives.value||[]).filter(d=>!/teams wiki data/i.test(d.name));
+ const drive=candidates.find(d=>/freigegebene dokumente|shared documents|documents|dokumente/i.test(d.name));
+ if(!drive)throw new Error('Main SharePoint document library was not identified.');
+ const q=encodeURIComponent("'"+MS365.reportFolderName+"'");
+ const found=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root/search(q='+q+')?$select=id,name,folder,parentReference',token,'Report folder lookup');
+ const folders=(found.value||[]).filter(x=>x.folder&&norm(x.name).toLowerCase()===MS365.reportFolderName.toLowerCase());
+ if(!folders.length)throw new Error('Folder "'+MS365.reportFolderName+'" was not found in SharePoint.');
+ if(folders.length>1)throw new Error('More than one "'+MS365.reportFolderName+'" folder was found. Please use a unique report folder name.');
+ return{drive,folder:folders[0]};
+}
+async function archivePdfToSharePoint(){
+ if(!lastRecord)return;
+ const el=$('archivestatus');el.textContent='SAVING…';
+ try{
+  const token=await graphToken();
+  const {drive,folder}=await findReportFolder(token);
+  const filename=archiveBaseName()+'.pdf',blob=pdfBlobFromRecord();
+  const url='https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+folder.id+':/'+encodeURIComponent(filename)+':/content';
+  const resp=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/pdf'},body:blob});
+  if(!resp.ok){
+   let detail='';try{const j=await resp.json();detail=j?.error?.message||''}catch(e){}
+   throw new Error('PDF upload failed ('+resp.status+')'+(detail?': '+detail:''));
+  }
+  el.textContent='SAVED — '+filename;
+  setStatus('Check completed and PDF report saved to '+MS365.reportFolderName+': '+filename);
+ }catch(e){
+  el.textContent='NOT SAVED';
+  setStatus('Check completed, but automatic PDF archive failed: '+e.message+' Print / Save PDF Report remains available.');
+ }
+}
+
 function filterRows(account,button){document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));button.classList.add('active');document.querySelectorAll('#tbody tr').forEach(r=>r.style.display=(account==='ALL'||r.dataset.account===account)?'':'none')}
 function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';return'PreTradeCheck_'+lastRecord.check_id.replace(/^PTC_/,'')+'_'+lastRecord.accounts_checked.join('-')}
 function savePdf(){if(!lastRecord)return;const old=document.title;document.title=archiveBaseName();window.print();setTimeout(()=>document.title=old,1000)}
