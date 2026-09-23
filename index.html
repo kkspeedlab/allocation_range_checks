@@ -31,7 +31,7 @@ let lastRecord=null;
 function setStatus(t){$('statusline').textContent=t}
 function norm(v){return String(v??'').trim()}
 function num(v){const n=Number(v);return Number.isFinite(n)?n:0}
-function normIsin(v){return norm(v).toUpperCase().replace(/_\d+$/,'')}
+function normIsin(v){return norm(v).toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/_\d+$/,'')}
 function fmtPct(v){return Number.isFinite(v)?v.toFixed(2)+'%':'—'}
 function fmtMoney(v){return Number.isFinite(v)?new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v):'—'}
 function makeId(){const d=new Date(),p=n=>String(n).padStart(2,'0');return 'PTC_'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())}
@@ -40,7 +40,7 @@ function sheetRows(wb,name,headerRow=4){const ws=wb.Sheets[name];if(!ws)throw ne
 function combinedAccount(v){const u=norm(v).toUpperCase();return ACCOUNT_ORDER.find(a=>a===u)||null}
 function combinedState(ar,cr,sr,account){const s=sr.find(r=>combinedAccount(r.Account)===account);if(!s)throw new Error('No Summary row found for '+account+'.');const nav=num(s['Combined NAV EUR']);if(!nav)throw new Error('Combined NAV is zero for '+account+'.');const get=x=>ar.find(r=>combinedAccount(r.Account)===account&&norm(r['Asset Class'])===x),eq=get('Equities incl. Commodities'),fi=get('Fixed Income - Bonds'),alt=get('Alternatives'),mm=get('Money Markets');if(!eq||!fi||!alt||!mm)throw new Error('Required Allocation rows are missing for '+account+'.');const nonEur=cr.filter(r=>{const c=norm(r.Currency).toUpperCase();return combinedAccount(r.Account)===account&&c&&c!=='EUR'&&c!=='TOTAL'&&c!=='UNALLOCATED'}).reduce((x,r)=>x+num(r['Combined EUR']),0),rg=r=>({min:r['Min %']===null?null:num(r['Min %'])*100,max:r['Max %']===null?null:num(r['Max %'])*100});return{nav,eqcom:num(eq['Combined % NAV'])*100,fi:num(fi['Combined % NAV'])*100,alt:num(alt['Combined % NAV'])*100,mm:num(mm['Combined % NAV'])*100,fxPct:nonEur/nav*100,ranges:{eqcom:rg(eq),fi:rg(fi),alt:rg(alt),mm:rg(mm),fx:{min:0,max:70}}}}
 function combinedValuationDate(sr,assets){const r=sr.find(x=>norm(x.Item)==='Valuation Date');if(r&&r.Value)return String(r.Value);const a=assets.find(x=>x['Valuation Date']);return a?String(a['Valuation Date']):'—'}
-function bestMatch(rows,account,isin){return rows.find(x=>combinedAccount(x.Account)===account&&normIsin(x['ISIN/Asset Key'])===isin)||rows.find(x=>normIsin(x['ISIN/Asset Key'])===isin)||null}
+function bestMatch(rows,account,isin){const target=normIsin(isin);return rows.find(x=>combinedAccount(x.Account)===account&&normIsin(x['ISIN/Asset Key'])===target)||rows.find(x=>normIsin(x['ISIN/Asset Key'])===target)||null}
 function combinedClass(v){const c=norm(v);if(c==='Equities'||c==='Commodities'||c==='Equities incl. Commodities')return{cls:c,key:'eqcom'};if(c==='Fixed Income - Bonds')return{cls:c,key:'fi'};if(c==='Alternatives')return{cls:c,key:'alt'};return{cls:c||'Unknown',key:null}}
 function valueOrder(match,qty){if(!match)return{value:null,source:'Unpriced'};const p=num(match['Unit Price EUR']);if(p)return{value:Math.abs(qty)*Math.abs(p),source:'Combined Asset Detail'};const q=num(match.Quantity),v=num(match['Market Value EUR']);if(q&&v)return{value:Math.abs(qty)*Math.abs(v/q),source:'Combined Asset Detail fallback'};return{value:null,source:'Unpriced'}}
 const UBS_ACCOUNT_MAP={'0206-0000658778.S1':'ELE','0206-0000658780.S1':'ENV','0206-0000658773.S1':'ADV'};
