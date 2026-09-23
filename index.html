@@ -42,7 +42,29 @@ function allocationAccount(v){const u=norm(v).toUpperCase();return ACCOUNT_ORDER
 function allocationState(rows,account){const relevant=rows.filter(r=>allocationAccount(r.Strategy)===account&&ALLOC_COMPONENTS[norm(r.Component)]&&r.Date!==null&&r.Date!==undefined);if(!relevant.length)throw new Error('No Capital_Allocations rows found for '+account+'.');const latest=Math.max(...relevant.map(r=>num(r.Date)));const latestRows=relevant.filter(r=>num(r.Date)===latest);const out={nav:0,eqcom:0,fi:0,alt:0,mm:0,dateSerial:latest};for(const r of latestRows){const k=ALLOC_COMPONENTS[norm(r.Component)];out[k]=num(r.Weight)*100;out[k+'_amount']=num(r.Amount);out.nav+=num(r.Amount)}if(!out.nav)throw new Error('Allocation Amount total is zero for '+account+'.');return out}
 function excelSerialToDate(serial){const d=new Date((Number(serial)-25569)*86400*1000);return Number.isFinite(d.getTime())?d:null}
 function formatAllocDate(serial){const d=excelSerialToDate(serial);return d?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):String(serial)}
-function accountFromSheet(s){const u=norm(s).toUpperCase();return ACCOUNT_ORDER.find(a=>u===a)||null}
+const UBS_ACCOUNT_MAP={'0206-0000658778.S1':'ELE','0206-0000658780.S1':'ADV','0206-0000658773.S1':'ENV'};
+function accountFromSheet(s){const u=norm(s).toUpperCase();return ACCOUNT_ORDER.find(a=>u===a)||UBS_ACCOUNT_MAP[u]||null}
+function normalizeOrderRows(sheetName,rows){
+ const account=accountFromSheet(sheetName);
+ if(!account)return null;
+ // Existing internal/trader format already parsed by row-1 headers.
+ if(rows.some(r=>Object.prototype.hasOwnProperty.call(r,'Stex Order Group')))return [account,rows];
+ // UBS EQ Upload template: XLSX parser used row 1 as keys; rebuild rows from worksheet rows 3+.
+ const first=rows[0]||{};
+ if(norm(first['UBS - EQ Order Upload Template'])!=='Mandatory')return [account,rows];
+ const keys=Object.keys(first);
+ const col0='UBS - EQ Order Upload Template';
+ // Sheet-to-json has generated __EMPTY keys for the remaining columns.
+ const headers=['Instrument name','ISIN','CCY','Side','Quantity (shares)','Limit','Account','Trading Place','Valid From (dd.mm.yyyy)','Valid until (dd.mm.yyyy)','Trader Text'];
+ const headerRow=rows[1]||{};
+ const colKeys=[col0,...keys.filter(k=>k!==col0)];
+ // rows[1] is the real header row; rows[2...] are orders. Map UBS fields into the engine's canonical fields.
+ const mapped=rows.slice(2).map(r=>{
+   const vals=colKeys.map(k=>r[k]);
+   return {'Stex Order Group':vals[3],'Quantity':vals[4],'Asset':vals[1],'Instrument name':vals[0],'Account':vals[6]};
+ }).filter(r=>norm(r.Asset)&&num(r.Quantity)&&['buy','sell'].includes(norm(r['Stex Order Group']).toLowerCase()));
+ return [account,mapped];
+}
 function bestMatch(rows,account,isin){return rows.find(x=>norm(x.account).toUpperCase()===account&&(normIsin(x.Asset_Key_Base)===isin||normIsin(x['Asset Key'])===isin))||null}
 function valueOrder(match,qty){if(!match)return{value:null,source:'Unpriced'};const eq=num(match['EOP Qty']),ev=num(match['EOP Mkt Val Tot Cont Ccy']);if(eq&&ev)return{value:Math.abs(qty)*Math.abs(ev/eq),source:'HSBC EOP'};const sq=num(match['SOP Qty']),sv=num(match['SOP Mkt Val Cont Ccy']);if(sq&&sv)return{value:Math.abs(qty)*Math.abs(sv/sq),source:'HSBC SOP fallback'};return{value:null,source:'Unpriced'}}
 async function yahooQuote(isin){if(yahooCache.has(isin))return yahooCache.get(isin);try{const r=await fetch(YAHOO_API+'?isin='+encodeURIComponent(isin));const j=await r.json();if(!r.ok||!j.ok||!Number.isFinite(Number(j.price_eur)))throw new Error();yahooCache.set(isin,j);return j}catch(e){yahooCache.set(isin,null);return null}}
@@ -56,9 +78,9 @@ async function runCheck(){
   const p=await workbookToRows(pf),a=await workbookToRows(af),o=await workbookToRows(of);
   const rows=p.sheets.data||p.sheets.Data||Object.values(p.sheets)[0],allocRows=a.sheets.Capital_Allocations;
   if(!allocRows)throw new Error('Capital_Allocations sheet was not found.');
-  const orderSheets=Object.entries(o.sheets).map(([s,r])=>[accountFromSheet(s),r]).filter(x=>x[0]);
+  const orderSheets=Object.entries(o.sheets).map(([s,r])=>normalizeOrderRows(s,r)).filter(Boolean);
   const activeAccounts=[...new Set(orderSheets.map(x=>x[0]))];
-  if(!activeAccounts.length)throw new Error('No ELE, ADV, ENV or JOINT order sheets were found.');
+  if(!activeAccounts.length)throw new Error('No recognized ELE, ADV, ENV, JOINT, Company or mapped UBS order sheets were found.');
   const states={};for(const ac of activeAccounts){const al=allocationState(allocRows,ac),hs=hsbcState(rows,ac);states[ac]={...al,fxPct:hs.nav?hs.fx/hs.nav*100:NaN}}
   const deltas={};activeAccounts.forEach(ac=>deltas[ac]={eqcom:0,fi:0,alt:0,fx:0,mm:0});
   const orderDetails=[];let unpriced=0,reviewCount=0;
