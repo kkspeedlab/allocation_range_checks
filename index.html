@@ -49,25 +49,28 @@ async function graphToken(){
  const r=await msalApp.loginPopup({scopes:['User.Read','Files.Read','Sites.Read.All'],prompt:'select_account'});
  return r.accessToken;
 }
-async function graphJson(url,token){
+async function graphJson(url,token,stage='Microsoft 365'){
  const r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
- if(!r.ok)throw new Error('Microsoft 365 request failed ('+r.status+').');
+ if(!r.ok){
+  let detail='';try{const j=await r.json();detail=j?.error?.message||''}catch(e){}
+  throw new Error(stage+' failed ('+r.status+')'+(detail?': '+detail:''));
+ }
  return r.json();
 }
 async function loadLatestCombined(){
  const b=$('autoload');b.disabled=true;$('autofilename').textContent='Loading…';setStatus('Connecting to Microsoft 365…');
  try{
   const token=await graphToken();
-  const site=await graphJson('https://graph.microsoft.com/v1.0/sites/'+MS365.hostname+':'+MS365.sitePath+'?$select=id',token);
-  const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token);
+  const site=await graphJson('https://graph.microsoft.com/v1.0/sites/'+MS365.hostname+':'+MS365.sitePath+'?$select=id',token,'SharePoint site lookup');
+  const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token,'Document library lookup');
   const drive=drives.value.find(d=>/freigegebene dokumente|documents/i.test(d.name))||drives.value[0];
   if(!drive)throw new Error('SharePoint document library was not found.');
   const enc=MS365.folderPath.split('/').map(encodeURIComponent).join('/');
-  const listing=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root:/'+enc+':/children?$select=id,name,file,lastModifiedDateTime&$top=200',token);
+  const listing=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root:/'+enc+':/children?$select=id,name,file,lastModifiedDateTime&$top=200',token,'COMBINED folder lookup');
   const files=(listing.value||[]).filter(x=>x.file&&/^Combined_Daily_Allocation_\d{8}\.xlsx$/i.test(x.name)).sort((a,b)=>b.name.localeCompare(a.name));
   if(!files.length)throw new Error('No Combined_Daily_Allocation_YYYYMMDD.xlsx file was found.');
   const item=files[0],resp=await fetch('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+item.id+'/content',{headers:{Authorization:'Bearer '+token}});
-  if(!resp.ok)throw new Error('Could not download '+item.name+' ('+resp.status+').');
+  if(!resp.ok){let detail='';try{const j=await resp.json();detail=j?.error?.message||''}catch(e){}throw new Error('Combined file download failed ('+resp.status+')'+(detail?': '+detail:''));}
   const blob=await resp.blob();automaticPortfolio=new File([blob],item.name,{type:blob.type||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   $('autofilename').textContent=item.name;
   setStatus('Combined Daily Allocation loaded automatically: '+item.name+'. Upload Proposed Orders and run the check.');
