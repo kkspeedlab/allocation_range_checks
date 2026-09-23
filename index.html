@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Allocation Range Pre-Trade Check</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
 <style>
 :root{--navy:#17324d;--blue:#2f6fa3;--bg:#f4f6f9;--panel:#fff;--text:#243444;--muted:#6c7a89;--border:#dfe5eb;--green:#237a45;--red:#b42318;--amber:#9a6a00}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}header{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center}h1{font-size:21px;margin:0}.sub{font-size:12px;opacity:.8;margin-top:4px}.badge{background:#ffffff1f;padding:8px 12px;border-radius:18px;font-size:12px}.wrap{max-width:1500px;margin:auto;padding:22px}.panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:18px}.title{font-weight:700;color:var(--navy);margin-bottom:14px}.uploads{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end}label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px}input[type=file]{width:100%;border:1px solid var(--border);border-radius:7px;padding:9px}.btn{border:0;border-radius:7px;padding:11px 18px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#edf2f6;color:var(--navy);border:1px solid var(--border)}.statusline{margin-top:12px;font-size:12px;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{border:1px solid var(--border);border-radius:9px;padding:14px;background:#fbfcfd}.card h3{margin:0 0 10px;color:var(--navy)}.metric{display:flex;justify-content:space-between;font-size:12px;margin:7px 0}.metric span:first-child{color:var(--muted)}.pill{display:inline-block;padding:5px 9px;border-radius:14px;font-weight:700;font-size:11px}.pass{background:#eaf7ef;color:var(--green)}.fail{background:#fdecec;color:var(--red)}.pending{background:#fff6df;color:var(--amber)}.neutral{background:#eef3f7;color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f0f4f8;color:var(--navy);text-align:left;padding:10px 9px;border-bottom:1px solid var(--border);white-space:nowrap}td{padding:10px 9px;border-bottom:1px solid #edf0f3}.num{text-align:right;font-variant-numeric:tabular-nums}.filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.filter{border:1px solid var(--border);background:#fff;color:var(--navy);border-radius:16px;padding:6px 11px;cursor:pointer}.filter.active{background:var(--navy);color:#fff}.reportgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:10px 12px}.field small{display:block;color:var(--muted);text-transform:uppercase;margin-bottom:4px}.field strong{font-size:13px;color:var(--navy)}.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}.note{font-size:11px;color:var(--muted);line-height:1.5}.scroll{overflow-x:auto}@media(max-width:900px){.uploads,.cards,.reportgrid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.uploads,.cards,.reportgrid{grid-template-columns:1fr}}@media print{header{background:#fff;color:#000;border-bottom:2px solid #222}.uploads,.filters,.actions,.note{display:none}.panel{border:0;padding:8px 0;margin:0}.wrap{padding:0}}
 .manual-attention{outline:2px solid var(--accent,#c69214);outline-offset:-2px;background:#fff8df}
@@ -14,7 +15,7 @@
 <body>
 <header><div><h1>Allocation Range Pre-Trade Check</h1><div class="sub">Portfolio allocation impact before sending orders for execution</div></div><div class="badge">PRE-TRADE CONTROL</div></header>
 <main class="wrap">
-<section class="panel"><div class="title">1. Load Data</div><div class="uploads"><div><label>Combined Daily Allocation</label><input id="portfolio" type="file" accept=".xlsx,.xls"></div><div><label>Proposed Orders</label><input id="orders" type="file" accept=".xlsx,.xls,.csv"></div><button id="runbtn" class="btn primary" type="button">Run Pre-Trade Check</button></div><div id="statusline" class="statusline">Both files are processed locally in your browser. Combined Daily Allocation supplies NAV, allocations, currency exposure, ranges and held-asset valuation data.</div></section>
+<section class="panel"><div class="title">1. Load Data</div><div class="uploads"><div><label>Combined Daily Allocation</label><div id="autofile" class="field"><small>Automatic source</small><strong id="autofilename">Connecting to Microsoft 365…</strong><div class="actions"><button id="autoload" class="btn secondary" type="button">Load Latest Automatically</button></div></div><label style="margin-top:10px">Manual fallback</label><input id="portfolio" type="file" accept=".xlsx,.xls"></div><div><label>Proposed Orders (manual upload)</label><input id="orders" type="file" accept=".xlsx,.xls,.csv"></div><button id="runbtn" class="btn primary" type="button">Run Pre-Trade Check</button></div><div id="statusline" class="statusline">Loading the latest valid Combined Daily Allocation from Microsoft 365. Proposed Orders always remain a manual upload.</div></section>
 <section class="panel"><div class="title">2. Accounts</div><div class="cards" id="cards"></div></section>
 <section class="panel"><div class="title">3. Projected Allocation Ranges</div><div class="filters"><button class="filter active" data-account="ALL">All</button><button class="filter" data-account="ELE">ELE</button><button class="filter" data-account="ADV">ADV</button><button class="filter" data-account="ENV">ENV</button><button class="filter" data-account="JOINT">JOINT</button><button class="filter" data-account="COMPANY">Company</button><button class="filter" data-account="PERSONAL">Personal</button></div><div class="scroll"><table><thead><tr><th>Account</th><th>Control</th><th class="num">Current</th><th class="num">Trade Effect</th><th class="num">Projected</th><th class="num">Min</th><th class="num">Max</th><th class="num">Headroom</th><th>Status</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
 <section class="panel"><div class="title">4. Order Valuation Detail</div><div class="scroll"><table><thead><tr><th>Account</th><th>Side</th><th>ISIN</th><th>Description</th><th>Classification</th><th class="num">Quantity</th><th class="num">EUR Value</th><th>Price Source</th><th>Status</th></tr></thead><tbody id="orderbody"></tbody></table></div></section>
@@ -31,6 +32,50 @@ const YAHOO_API='https://allocation-range-pricing.vercel.app/api/quote';
 const yahooCache=new Map();
 const manualOverrides=new Map();
 let lastRecord=null;
+let automaticPortfolio=null;
+const MS365={
+ clientId:'ba7b47bc-1bb2-403d-9eb3-01f8f1b7eb0c',
+ tenantId:'572dc356-734c-4a91-9e41-33f2e8e48071',
+ hostname:'speedlabag.sharepoint.com',
+ sitePath:'/sites/Research&Development',
+ folderPath:'General/Performance live/Monthly performance  Advisory 1/Advisory_Daily/Allocation/COMBINED'
+};
+const msalApp=typeof msal!=='undefined'?new msal.PublicClientApplication({auth:{clientId:MS365.clientId,authority:'https://login.microsoftonline.com/'+MS365.tenantId,redirectUri:location.origin+location.pathname},cache:{cacheLocation:'sessionStorage'}}):null;
+async function graphToken(){
+ if(!msalApp)throw new Error('Microsoft sign-in library did not load.');
+ await msalApp.initialize();
+ let account=msalApp.getAllAccounts()[0];
+ if(account){try{return (await msalApp.acquireTokenSilent({scopes:['User.Read','Files.Read','Sites.Read.All'],account})).accessToken}catch(e){}}
+ const r=await msalApp.loginPopup({scopes:['User.Read','Files.Read','Sites.Read.All'],prompt:'select_account'});
+ return r.accessToken;
+}
+async function graphJson(url,token){
+ const r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+ if(!r.ok)throw new Error('Microsoft 365 request failed ('+r.status+').');
+ return r.json();
+}
+async function loadLatestCombined(){
+ const b=$('autoload');b.disabled=true;$('autofilename').textContent='Loading…';setStatus('Connecting to Microsoft 365…');
+ try{
+  const token=await graphToken();
+  const site=await graphJson('https://graph.microsoft.com/v1.0/sites/'+MS365.hostname+':'+MS365.sitePath+'?$select=id',token);
+  const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token);
+  const drive=drives.value.find(d=>/freigegebene dokumente|documents/i.test(d.name))||drives.value[0];
+  if(!drive)throw new Error('SharePoint document library was not found.');
+  const enc=MS365.folderPath.split('/').map(encodeURIComponent).join('/');
+  const listing=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root:/'+enc+':/children?$select=id,name,file,lastModifiedDateTime&$top=200',token);
+  const files=(listing.value||[]).filter(x=>x.file&&/^Combined_Daily_Allocation_\d{8}\.xlsx$/i.test(x.name)).sort((a,b)=>b.name.localeCompare(a.name));
+  if(!files.length)throw new Error('No Combined_Daily_Allocation_YYYYMMDD.xlsx file was found.');
+  const item=files[0],resp=await fetch('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+item.id+'/content',{headers:{Authorization:'Bearer '+token}});
+  if(!resp.ok)throw new Error('Could not download '+item.name+' ('+resp.status+').');
+  const blob=await resp.blob();automaticPortfolio=new File([blob],item.name,{type:blob.type||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  $('autofilename').textContent=item.name;
+  setStatus('Combined Daily Allocation loaded automatically: '+item.name+'. Upload Proposed Orders and run the check.');
+ }catch(e){
+  automaticPortfolio=null;$('autofilename').textContent='Automatic load unavailable — use manual fallback';
+  setStatus('Automatic Combined Allocation load failed: '+e.message+' Manual upload remains available.');
+ }finally{b.disabled=false}
+}
 function setStatus(t){$('statusline').textContent=t}
 function norm(v){return String(v??'').trim()}
 function num(v){const n=Number(v);return Number.isFinite(n)?n:0}
@@ -83,7 +128,7 @@ function applyManualOrder(account,isin){
 }
 function controlResultPct(current,effect,c){const projected=current+effect;if(c.min===null||c.max===null)return{current,delta:effect,projected,headroom:null,status:'PASS'};const headroom=Math.min(projected-c.min,c.max-projected);return{current,delta:effect,projected,headroom,status:(projected>=c.min&&projected<=c.max)?'PASS':'FAIL'}}
 async function runCheck(){
- const pf=$('portfolio').files[0],of=$('orders').files[0];if(!pf||!of){setStatus('Please select the Combined Daily Allocation and Proposed Orders files.');return}
+ const pf=$('portfolio').files[0]||automaticPortfolio,of=$('orders').files[0];if(!pf||!of){setStatus(!pf?'Combined Daily Allocation is not loaded. Use automatic loading or the manual fallback.':'Please upload the Proposed Orders file.');return}
  $('runbtn').disabled=true;setStatus('Calculating…');try{
   const p=await workbookToRows(pf),o=await workbookToRows(of),summaryRows=sheetRows(p.wb,'Summary'),allocationRows=sheetRows(p.wb,'Allocation'),currencyRows=sheetRows(p.wb,'Currency Allocation'),assetRows=sheetRows(p.wb,'Asset Detail'),sourceRows=sheetRows(p.wb,'Source Info',3);
   const orderSheets=Object.entries(o.sheets).map(([x,r])=>normalizeOrderRows(x,r)).filter(Boolean),activeAccounts=[...new Set(orderSheets.map(x=>x[0]))];if(!activeAccounts.length)throw new Error('No recognized order sheets were found.');
@@ -127,9 +172,9 @@ function savePdf(){if(!lastRecord)return;const old=document.title;document.title
 function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
 window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));
 window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
-$('runbtn').addEventListener('click',runCheck);$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
+$('runbtn').addEventListener('click',runCheck);$('autoload').addEventListener('click',loadLatestCombined);$('portfolio').addEventListener('change',()=>{if($('portfolio').files[0])setStatus('Manual Combined Daily Allocation selected: '+$('portfolio').files[0].name+'. This will override the automatically loaded file.')});$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${a}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
-setStatus('Application loaded. Select the three files and run the pre-trade check.');
+setStatus('Application loaded. Loading latest Combined Daily Allocation automatically…');setTimeout(loadLatestCombined,150);
 </script>
 </body>
 </html>
