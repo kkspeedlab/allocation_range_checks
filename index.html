@@ -21,7 +21,7 @@
 <section class="panel"><div class="title">2. Accounts</div><div class="cards" id="cards"></div></section>
 <section class="panel"><div class="title">3. Projected Allocation Ranges</div><div class="filters"><button class="filter active" data-account="ALL">All</button><button class="filter" data-account="ELE">ELE</button><button class="filter" data-account="ADV">ADV</button><button class="filter" data-account="ENV">ENV</button><button class="filter" data-account="JOINT">JOINT</button><button class="filter" data-account="COMPANY">Company</button><button class="filter" data-account="PERSONAL">Personal</button></div><div class="scroll"><table><thead><tr><th>Account</th><th>Control</th><th class="num">Current</th><th class="num">Trade Effect</th><th class="num">Projected</th><th class="num">Min</th><th class="num">Max</th><th class="num">Headroom</th><th>Status</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
 <section class="panel"><div class="title">4. Order Valuation Detail</div><div class="scroll"><table><thead><tr><th>Account</th><th>Side</th><th>ISIN</th><th>Description</th><th>Classification</th><th class="num">Quantity</th><th class="num">EUR Value</th><th>Price Source</th><th>Status</th></tr></thead><tbody id="orderbody"></tbody></table></div></section>
-<section class="panel"><div class="title">5. Archive / Reporting</div><div class="reportgrid"><div class="field"><small>Check ID</small><strong id="checkid">Not generated</strong></div><div class="field"><small>Check Date / Time</small><strong id="timestamp">—</strong></div><div class="field"><small>Combined Allocation File</small><strong id="pfile">—</strong></div><div class="field"><small>Allocation Date</small><strong id="adate">—</strong></div><div class="field"><small>Orders File</small><strong id="ofile">—</strong></div><div class="field"><small>Accounts Checked</small><strong id="accountschecked">—</strong></div><div class="field"><small>Mandatory Controls</small><strong>7 per account</strong></div><div class="field"><small>Unpriced Orders</small><strong id="unpriced">—</strong></div><div class="field"><small>Overall Result</small><strong id="overall">NOT RUN</strong></div><div class="field"><small>Shared Report Archive</small><strong id="archivestatus">NOT SAVED</strong></div></div><div class="actions"><button id="pdf" class="btn primary" type="button" disabled>Print / Save PDF Report</button><button id="jsonbtn" class="btn secondary" type="button" disabled>Export Calculation Record (JSON)</button></div></section>
+<section class="panel"><div class="title">5. Archive / Reporting</div><div class="reportgrid"><div class="field"><small>Check ID</small><strong id="checkid">Not generated</strong></div><div class="field"><small>Check Date / Time</small><strong id="timestamp">—</strong></div><div class="field"><small>Combined Allocation File</small><strong id="pfile">—</strong></div><div class="field"><small>Allocation Date</small><strong id="adate">—</strong></div><div class="field"><small>Orders File</small><strong id="ofile">—</strong></div><div class="field"><small>Accounts Checked</small><strong id="accountschecked">—</strong></div><div class="field"><small>Mandatory Controls</small><strong>7 per account</strong></div><div class="field"><small>Unpriced Orders</small><strong id="unpriced">—</strong></div><div class="field"><small>Overall Result</small><strong id="overall">NOT RUN</strong></div><div class="field"><small>Shared Report Archive</small><strong id="archivestatus">NOT SAVED</strong></div></div><div class="actions"><button id="onedrivepdf" class="btn primary" type="button" disabled>Save PDF to OneDrive</button><button id="pdf" class="btn secondary" type="button" disabled>Print / Save PDF Report</button><button id="jsonbtn" class="btn secondary" type="button" disabled>Export Calculation Record (JSON)</button></div></section>
 <section class="panel"><div class="title">6. Control Rules</div><p class="note">Equities incl. Commodities: 25–65%. Fixed Income – Bonds: 15–60%. Alternatives / Hedge Funds: 0–40%. Foreign Currencies: 0–70%. Money Market: 0–60%. Eligible Investment Universe: PASS. Concentration Limit: PASS. All seven controls must PASS for an account to PASS.</p><p class="note"><strong>Current allocation source:</strong> Combined Daily Allocation supplies combined NAV, allocation, currency exposure, account ranges and held-asset EUR unit prices across HSBC, UBS and JPM. Yahoo is used only when an ISIN is absent from Asset Detail. Foreign-currency trade impact assumes non-EUR purchases are funded from EUR cash and non-EUR sale proceeds are converted back to EUR.</p></section>
 </main>
 <script>
@@ -200,11 +200,10 @@ function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFil
    },50);
  }
  const overall=results.every(x=>x.status==='PASS')?((unpriced||reviewCount)?'REVIEW':'PASS'):'FAIL',id=makeId(),ts=new Date().toLocaleString();
- $('checkid').textContent=id;$('timestamp').textContent=ts;$('pfile').textContent=portfolioFile;$('adate').textContent=allocDate;$('ofile').textContent=ordersFile;$('accountschecked').textContent=accounts.join(', ');$('unpriced').textContent=unpriced;$('overall').textContent=overall;$('pdf').disabled=false;$('jsonbtn').disabled=false;
+ $('checkid').textContent=id;$('timestamp').textContent=ts;$('pfile').textContent=portfolioFile;$('adate').textContent=allocDate;$('ofile').textContent=ordersFile;$('accountschecked').textContent=accounts.join(', ');$('unpriced').textContent=unpriced;$('overall').textContent=overall;$('onedrivepdf').disabled=false;$('pdf').disabled=false;$('jsonbtn').disabled=false;
  setStatus(`Check completed: ${orders.length} orders processed. Overall ${overall}.`);
  lastRecord={check_id:id,timestamp:ts,portfolio_file:portfolioFile,allocation_file:allocationFile,allocation_date:allocDate,orders_file:ordersFile,accounts_checked:accounts,overall_result:overall,unpriced_orders:unpriced,review_orders:reviewCount,reconciliation,results,orders};
- $('archivestatus').textContent='PENDING';
- setTimeout(archivePdfToSharePoint,0);
+ $('archivestatus').textContent='READY TO SAVE';
 }
 
 function pdfBlobFromRecord(){
@@ -271,7 +270,7 @@ async function findReportFolder(token){
 }
 async function archivePdfToSharePoint(){
  if(!lastRecord)return;
- const el=$('archivestatus');el.textContent='SAVING…';
+ const el=$('archivestatus'),btn=$('onedrivepdf');btn.disabled=true;el.textContent='SAVING…';
  try{
   const token=await graphWriteToken();
   const {drive,folder}=await findReportFolder(token);
@@ -286,8 +285,8 @@ async function archivePdfToSharePoint(){
   setStatus('Check completed and PDF report saved to '+MS365.reportFolderName+': '+filename);
  }catch(e){
   el.textContent='NOT SAVED';
-  setStatus('Check completed, but automatic PDF archive failed: '+e.message+' Print / Save PDF Report remains available.');
- }
+  setStatus('PDF was not saved to OneDrive: '+e.message+' Print / Save PDF Report remains available.');
+ }finally{btn.disabled=false}
 }
 
 function filterRows(account,button){document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));button.classList.add('active');document.querySelectorAll('#tbody tr').forEach(r=>r.style.display=(account==='ALL'||r.dataset.account===account)?'':'none')}
@@ -296,7 +295,7 @@ function savePdf(){if(!lastRecord)return;const old=document.title;document.title
 function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
 window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));
 window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
-$('runbtn').addEventListener('click',runCheck);$('autoload').addEventListener('click',loadLatestCombined);$('portfolio').addEventListener('change',()=>{if($('portfolio').files[0])setStatus('Manual Combined Daily Allocation selected: '+$('portfolio').files[0].name+'. This will override the automatically loaded file.')});$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
+$('runbtn').addEventListener('click',runCheck);$('autoload').addEventListener('click',loadLatestCombined);$('portfolio').addEventListener('change',()=>{if($('portfolio').files[0])setStatus('Manual Combined Daily Allocation selected: '+$('portfolio').files[0].name+'. This will override the automatically loaded file.')});$('onedrivepdf').addEventListener('click',archivePdfToSharePoint);$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
 $('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${a}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
 setStatus('Application loaded. Loading latest Combined Daily Allocation automatically…');setTimeout(loadLatestCombined,150);
 </script>
