@@ -262,10 +262,18 @@ async function findReportFolder(token){
  const drive=candidates.find(d=>/freigegebene dokumente|shared documents|documents|dokumente/i.test(d.name));
  if(!drive)throw new Error('Main SharePoint document library was not identified.');
  const q=encodeURIComponent("'"+MS365.reportFolderName+"'");
- const found=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root/search(q='+q+')?$select=id,name,folder,parentReference',token,'Report folder lookup');
+ const found=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root/search(q='+q+')?$select=id,name,folder,parentReference,webUrl',token,'Report folder lookup');
  const folders=(found.value||[]).filter(x=>x.folder&&norm(x.name).toLowerCase()===MS365.reportFolderName.toLowerCase());
- if(!folders.length)throw new Error('Folder "'+MS365.reportFolderName+'" was not found in SharePoint.');
- if(folders.length>1)throw new Error('More than one "'+MS365.reportFolderName+'" folder was found. Please use a unique report folder name.');
+ if(!folders.length){
+  const root=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root/children?$select=id,name,folder,webUrl&$top=200',token,'Report archive diagnostic');
+  const items=(root.value||[]).map(x=>(x.folder?'[folder] ':'[file] ')+x.name).slice(0,50);
+  const driveNames=(drives.value||[]).map(d=>d.name).join(', ');
+  throw new Error('Folder "'+MS365.reportFolderName+'" was not found in document library "'+drive.name+'". Available libraries: '+driveNames+'. Root items in "'+drive.name+'": '+(items.length?items.join(', '):'none returned')+'.');
+ }
+ if(folders.length>1){
+  const locations=folders.map(x=>x.webUrl||x.parentReference?.path||x.name).join(' | ');
+  throw new Error('More than one "'+MS365.reportFolderName+'" folder was found. Locations: '+locations);
+ }
  return{drive,folder:folders[0]};
 }
 async function archivePdfToSharePoint(){
