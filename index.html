@@ -346,9 +346,42 @@ async function archivePdfToSharePoint(){
   const url='https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+folder.id+':/'+encodeURIComponent(filename)+':/content';
   const resp=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/pdf'},body:blob});
   if(!resp.ok){
-   let detail='';try{const j=await resp.json();detail=j?.error?.message||''}catch(e){}
-   throw new Error('PDF upload failed ('+resp.status+')'+(detail?': '+detail:''));
+ let detail='';
+ try{
+  const j=await resp.json();
+  detail=j?.error?.message||'';
+ }catch(e){}
+
+ // Diagnostic: inspect the scopes contained in the Microsoft Graph access token.
+ let tokenScopes='Unable to read token scopes';
+
+ try{
+  const parts=token.split('.');
+
+  if(parts.length>=2){
+   let payload=parts[1]
+    .replace(/-/g,'+')
+    .replace(/_/g,'/');
+
+   while(payload.length%4){
+    payload+='=';
+   }
+
+   const decoded=JSON.parse(atob(payload));
+
+   tokenScopes=decoded.scp
+    || (decoded.roles ? decoded.roles.join(', ') : 'No scp or roles claim found');
   }
+ }catch(e){
+  tokenScopes='Token scope diagnostic failed: '+e.message;
+ }
+
+ throw new Error(
+  'PDF upload failed ('+resp.status+')'
+  +(detail?': '+detail:'')
+  +' | Token scopes: '+tokenScopes
+ );
+}
   el.textContent='SAVED — '+filename;
   setStatus('Check completed and PDF report saved to '+MS365.reportFolderName+': '+filename);
  }catch(e){
