@@ -3,402 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Allocation Range Pre-Trade Check</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<title>Allocation Range Pre-Trade Check — SpeedLab Sign-in</title>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
-:root{--navy:#17324d;--blue:#2f6fa3;--bg:#f4f6f9;--panel:#fff;--text:#243444;--muted:#6c7a89;--border:#dfe5eb;--green:#237a45;--red:#b42318;--amber:#9a6a00}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}header{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center}h1{font-size:21px;margin:0}.sub{font-size:12px;opacity:.8;margin-top:4px}.badge{background:#ffffff1f;padding:8px 12px;border-radius:18px;font-size:12px}.wrap{max-width:1500px;margin:auto;padding:22px}.panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:18px}.title{font-weight:700;color:var(--navy);margin-bottom:14px}.uploads{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end}label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px}input[type=file]{width:100%;border:1px solid var(--border);border-radius:7px;padding:9px}.btn{border:0;border-radius:7px;padding:11px 18px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#edf2f6;color:var(--navy);border:1px solid var(--border)}.statusline{margin-top:12px;font-size:12px;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{border:1px solid var(--border);border-radius:9px;padding:14px;background:#fbfcfd}.card h3{margin:0 0 10px;color:var(--navy)}.metric{display:flex;justify-content:space-between;font-size:12px;margin:7px 0}.metric span:first-child{color:var(--muted)}.pill{display:inline-block;padding:5px 9px;border-radius:14px;font-weight:700;font-size:11px}.pass{background:#eaf7ef;color:var(--green)}.fail{background:#fdecec;color:var(--red)}.pending{background:#fff6df;color:var(--amber)}.neutral{background:#eef3f7;color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f0f4f8;color:var(--navy);text-align:left;padding:10px 9px;border-bottom:1px solid var(--border);white-space:nowrap}td{padding:10px 9px;border-bottom:1px solid #edf0f3}.num{text-align:right;font-variant-numeric:tabular-nums}.filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.filter{border:1px solid var(--border);background:#fff;color:var(--navy);border-radius:16px;padding:6px 11px;cursor:pointer}.filter.active{background:var(--navy);color:#fff}.reportgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:10px 12px}.field small{display:block;color:var(--muted);text-transform:uppercase;margin-bottom:4px}.field strong{font-size:13px;color:var(--navy)}.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}.note{font-size:11px;color:var(--muted);line-height:1.5}.scroll{overflow-x:auto}@media(max-width:900px){.uploads,.cards,.reportgrid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.uploads,.cards,.reportgrid{grid-template-columns:1fr}}@media print{header{background:#fff;color:#000;border-bottom:2px solid #222}.uploads,.filters,.actions,.note{display:none}.panel{border:0;padding:8px 0;margin:0}.wrap{padding:0}}
-.manual-attention{outline:2px solid var(--accent,#c69214);outline-offset:-2px;background:#fff8df}
-.manual-attention .manual-price,.manual-attention .manual-class{font-weight:600}
+:root{--navy:#17324d;--blue:#2f6fa3;--bg:#f4f6f9;--text:#243444;--muted:#6c7a89;--border:#dfe5eb;--red:#b42318}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:grid;place-items:center}.gate{width:min(520px,calc(100% - 32px));background:#fff;border:1px solid var(--border);border-radius:12px;padding:30px;box-shadow:0 12px 36px #17324d18}.brand{color:var(--navy);font-size:22px;font-weight:700;margin-bottom:7px}.sub{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:24px}.btn{width:100%;border:0;border-radius:7px;padding:12px 18px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff}.btn:disabled{opacity:.6;cursor:wait}.status{margin-top:15px;font-size:12px;color:var(--muted);line-height:1.45}.error{color:var(--red)}
 </style>
 </head>
 <body>
-<header><div><h1>Allocation Range Pre-Trade Check</h1><div class="sub">Portfolio allocation impact before sending orders for execution</div></div><div class="badge">PRE-TRADE CONTROL</div></header>
-<main class="wrap">
-<section class="panel"><div class="title">1. Load Data</div><div class="uploads"><div><label>Combined Daily Allocation</label><div id="autofile" class="field"><small>Automatic source</small><strong id="autofilename">Connecting to Microsoft 365…</strong><div class="actions"><button id="autoload" class="btn secondary" type="button">Load Latest Automatically</button></div></div><label style="margin-top:10px">Manual fallback</label><input id="portfolio" type="file" accept=".xlsx,.xls"></div><div><label>Proposed Orders (manual upload)</label><input id="orders" type="file" accept=".xlsx,.xls,.csv"></div><button id="runbtn" class="btn primary" type="button">Run Pre-Trade Check</button></div><div id="statusline" class="statusline">Loading the latest valid Combined Daily Allocation from Microsoft 365. Proposed Orders always remain a manual upload.</div></section>
-<section class="panel"><div class="title">2. Accounts</div><div class="cards" id="cards"></div></section>
-<section class="panel"><div class="title">3. Projected Allocation Ranges</div><div class="filters"><button class="filter active" data-account="ALL">All</button><button class="filter" data-account="ELE">ELE</button><button class="filter" data-account="ADV">ADV</button><button class="filter" data-account="ENV">ENV</button><button class="filter" data-account="JOINT">JOINT</button><button class="filter" data-account="COMPANY">Company</button><button class="filter" data-account="PERSONAL">Personal</button></div><div class="scroll"><table><thead><tr><th>Account</th><th>Control</th><th class="num">Current</th><th class="num">Trade Effect</th><th class="num">Projected</th><th class="num">Min</th><th class="num">Max</th><th class="num">Headroom</th><th>Status</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
-<section class="panel"><div class="title">4. Order Valuation Detail</div><div class="scroll"><table><thead><tr><th>Account</th><th>Side</th><th>ISIN</th><th>Description</th><th>Classification</th><th class="num">Quantity</th><th class="num">EUR Value</th><th>Price Source</th><th>Status</th></tr></thead><tbody id="orderbody"></tbody></table></div></section>
-<section class="panel"><div class="title">5. Archive / Reporting</div><div class="reportgrid"><div class="field"><small>Check ID</small><strong id="checkid">Not generated</strong></div><div class="field"><small>Check Date / Time</small><strong id="timestamp">—</strong></div><div class="field"><small>Combined Allocation File</small><strong id="pfile">—</strong></div><div class="field"><small>Allocation Date</small><strong id="adate">—</strong></div><div class="field"><small>Orders File</small><strong id="ofile">—</strong></div><div class="field"><small>Accounts Checked</small><strong id="accountschecked">—</strong></div><div class="field"><small>Mandatory Controls</small><strong>7 per account</strong></div><div class="field"><small>Unpriced Orders</small><strong id="unpriced">—</strong></div><div class="field"><small>Overall Result</small><strong id="overall">NOT RUN</strong></div><div class="field"><small>Shared Report Archive</small><strong id="archivestatus">NOT SAVED</strong></div></div><div class="actions"><button id="onedrivepdf" class="btn primary" type="button" disabled>Save PDF to OneDrive</button><button id="pdf" class="btn secondary" type="button" disabled>Print / Save PDF Report</button><button id="jsonbtn" class="btn secondary" type="button" disabled>Export Calculation Record (JSON)</button></div></section>
-<section class="panel"><div class="title">6. Control Rules</div><p class="note">Equities incl. Commodities: 25–65%. Fixed Income – Bonds: 15–60%. Alternatives / Hedge Funds: 0–40%. Foreign Currencies: 0–70%. Money Market: 0–60%. Eligible Investment Universe: PASS. Concentration Limit: PASS. All seven controls must PASS for an account to PASS.</p><p class="note"><strong>Current allocation source:</strong> Combined Daily Allocation supplies combined NAV, allocation, currency exposure, account ranges and held-asset EUR unit prices across HSBC, UBS and JPM. Yahoo is used only when an ISIN is absent from Asset Detail. Foreign-currency trade impact assumes non-EUR purchases are funded from EUR cash and non-EUR sale proceeds are converted back to EUR.</p></section>
-</main>
+<div class="gate">
+ <div class="brand">Allocation Range Pre-Trade Check</div>
+ <div class="sub">SpeedLab internal application. Sign in with your SpeedLab Microsoft account to continue.</div>
+ <button id="signin" class="btn" type="button">Sign in with Microsoft</button>
+ <div id="status" class="status">Authentication is required before the application is loaded.</div>
+</div>
 <script>
-const $=id=>document.getElementById(id);
-const CONTROLS=[{key:'eqcom',name:'Equities incl. Commodities',min:25,max:65},{key:'fi',name:'Fixed Income – Bonds',min:15,max:60},{key:'alt',name:'Alternatives / Hedge Funds',min:0,max:40},{key:'fx',name:'Foreign Currencies',min:0,max:70},{key:'mm',name:'Money Market',min:0,max:60},{key:'eligible',name:'Eligible Investment Universe',min:null,max:null},{key:'conc',name:'Concentration Limit',min:null,max:null}];
-const ACCOUNT_ORDER=['ELE','ADV','ENV','JOINT','COMPANY','PERSONAL'];
-const CLASS_MAP={'Single Equities':'eqcom','Equity Linked Notes':'eqcom','Equity Mutual Funds':'eqcom','Futures on Equities':'eqcom','Equity Options':'eqcom','Futures Options':'eqcom','Commodity funds':'eqcom','Commodity Funds':'eqcom','Bonds':'fi','Fixed Income Mutual Funds':'fi','Interest Rates Linked Notes':'fi','Hedge Funds':'alt'};
-const ALLOC_COMPONENTS={'Money Market':'mm','Fixed Income - Bonds':'fi','Equities (Incl. Commodities)':'eqcom','Alternatives':'alt'};
-const YAHOO_API='https://allocation-range-pricing.vercel.app/api/quote';
-const yahooCache=new Map();
-const manualOverrides=new Map();
-let lastRecord=null;
-let automaticPortfolio=null;
-const MS365={
- clientId:'ba7b47bc-1bb2-403d-9eb3-01f8f1b7eb0c',
- tenantId:'572dc356-734c-4a91-9e41-33f2e8e48071',
- hostname:'speedlabag.sharepoint.com',
- sitePath:'/sites/Research&Development',
- folderPath:'General/Performance live/Monthly performance  Advisory 1/Advisory_Daily/Allocation/COMBINED',
- reportFolderName:'Pre_Trade_Check_Reports'
-};
-const msalApp=typeof msal!=='undefined'?new msal.PublicClientApplication({auth:{clientId:MS365.clientId,authority:'https://login.microsoftonline.com/'+MS365.tenantId,redirectUri:location.origin+location.pathname},cache:{cacheLocation:'sessionStorage'}}):null;
-async function graphToken(){
- if(!msalApp)throw new Error('Microsoft sign-in library did not load.');
- await msalApp.initialize();
- let account=msalApp.getAllAccounts()[0];
- if(account){try{return (await msalApp.acquireTokenSilent({scopes:['User.Read','Files.Read','Sites.Read.All'],account})).accessToken}catch(e){}}
- const r=await msalApp.loginPopup({scopes:['User.Read','Files.Read','Sites.Read.All'],prompt:'select_account'});
- return r.accessToken;
-}
-async function graphWriteToken(){
- if(!msalApp)throw new Error('Microsoft sign-in library did not load.');
- await msalApp.initialize();
- let account=msalApp.getAllAccounts()[0];
- if(!account){
-  const login=await msalApp.loginPopup({scopes:['User.Read','Files.Read','Sites.Read.All'],prompt:'select_account'});
-  account=login.account||msalApp.getAllAccounts()[0];
- }
+const CLIENT_ID='ba7b47bc-1bb2-403d-9eb3-01f8f1b7eb0c';
+const TENANT_ID='572dc356-734c-4a91-9e41-33f2e8e48071';
+const REDIRECT_URI='https://kkspeedlab.github.io/allocation_range_checks/';
+const statusEl=document.getElementById('status');
+const signInBtn=document.getElementById('signin');
+let loadingApp=false;
+const authApp=new msal.PublicClientApplication({auth:{clientId:CLIENT_ID,authority:'https://login.microsoftonline.com/'+TENANT_ID,redirectUri:REDIRECT_URI},cache:{cacheLocation:'sessionStorage'}});
+function setStatus(message,isError=false){statusEl.textContent=message;statusEl.className='status'+(isError?' error':'')}
+async function loadProtectedApp(account){
+ if(loadingApp)return;loadingApp=true;signInBtn.disabled=true;
  try{
-  return (await msalApp.acquireTokenSilent({scopes:['Files.ReadWrite','Sites.Read.All'],account})).accessToken;
- }catch(e){
-  return (await msalApp.acquireTokenPopup({scopes:['Files.ReadWrite','Sites.Read.All'],account})).accessToken;
- }
+  if(!account||account.tenantId!==TENANT_ID)throw new Error('This application is restricted to the SpeedLab Microsoft tenant.');
+  setStatus('Authenticated as '+(account.username||account.name||'SpeedLab user')+'. Loading application…');
+  const response=await fetch('app.payload.txt',{cache:'no-store'});
+  if(!response.ok)throw new Error('Application payload could not be loaded ('+response.status+').');
+  const html=await response.text();
+  document.open();document.write(html);document.close();
+ }catch(e){loadingApp=false;signInBtn.disabled=false;setStatus(e?.message||String(e),true)}
 }
-async function graphJson(url,token,stage='Microsoft 365'){
- const r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
- if(!r.ok){
-  let detail='';try{const j=await r.json();detail=j?.error?.message||''}catch(e){}
-  throw new Error(stage+' failed ('+r.status+')'+(detail?': '+detail:''));
- }
- return r.json();
-}
-async function loadLatestCombined(){
- const b=$('autoload');b.disabled=true;$('autofilename').textContent='Loading…';setStatus('Connecting to Microsoft 365…');
+async function signIn(){
+ signInBtn.disabled=true;setStatus('Opening Microsoft sign-in…');
  try{
-  const token=await graphToken();
-  const site=await graphJson('https://graph.microsoft.com/v1.0/sites/'+MS365.hostname+':'+MS365.sitePath+'?$select=id',token,'SharePoint site lookup');
-  const drives=await graphJson('https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',token,'Document library lookup');
-  const candidates=(drives.value||[]).filter(d=>!/teams wiki data/i.test(d.name));
-  const drive=candidates.find(d=>/freigegebene dokumente|shared documents|documents|dokumente/i.test(d.name));
-  if(!drive){
-   const names=(drives.value||[]).map(d=>d.name).join(', ');
-   throw new Error('Main SharePoint document library was not identified. Available libraries: '+names);
-  }
-  setStatus('Microsoft 365 connected. Searching document library "'+drive.name+'" for the latest Combined Allocation…');
-  const parts=MS365.folderPath.split('/').filter(Boolean);
-  let parentId='root';
-  for(const part of parts){
-   const url=parentId==='root'
-    ?'https://graph.microsoft.com/v1.0/drives/'+drive.id+'/root/children?$select=id,name,folder'
-    :'https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+parentId+'/children?$select=id,name,folder';
-   const children=await graphJson(url,token,'Folder lookup: '+part);
-   const next=(children.value||[]).find(x=>x.folder&&norm(x.name).toLowerCase()===part.toLowerCase());
-   if(!next){
-    const items=(children.value||[]).map(x=>(x.folder?'[folder] ':'[file] ')+x.name).slice(0,30);
-    throw new Error('Folder "'+part+'" was not found in document library "'+drive.name+'". '+(items.length?'Items at this level: '+items.join(', '):'No child items were returned at this level.'));
-   }
-   parentId=next.id;
-  }
-  const listing=await graphJson('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+parentId+'/children?$select=id,name,file,lastModifiedDateTime&$top=200',token,'COMBINED folder contents');
-  const files=(listing.value||[]).filter(x=>x.file&&/^Combined_Daily_Allocation_\d{8}\.xlsx$/i.test(x.name)).sort((a,b)=>b.name.localeCompare(a.name));
-  if(!files.length)throw new Error('No Combined_Daily_Allocation_YYYYMMDD.xlsx file was found.');
-  const item=files[0],resp=await fetch('https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+item.id+'/content',{headers:{Authorization:'Bearer '+token}});
-  if(!resp.ok){let detail='';try{const j=await resp.json();detail=j?.error?.message||''}catch(e){}throw new Error('Combined file download failed ('+resp.status+')'+(detail?': '+detail:''));}
-  const blob=await resp.blob();automaticPortfolio=new File([blob],item.name,{type:blob.type||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  $('autofilename').textContent=item.name;
-  setStatus('Combined Daily Allocation loaded automatically: '+item.name+'. Upload Proposed Orders and run the check.');
- }catch(e){
-  automaticPortfolio=null;$('autofilename').textContent='Automatic load unavailable — use manual fallback';
-  setStatus('Automatic Combined Allocation load failed: '+e.message+' Manual upload remains available.');
- }finally{b.disabled=false}
+  const result=await authApp.loginPopup({scopes:['User.Read'],prompt:'select_account'});
+  await loadProtectedApp(result.account);
+ }catch(e){signInBtn.disabled=false;setStatus('Sign-in was not completed: '+(e?.message||e),true)}
 }
-function setStatus(t){$('statusline').textContent=t}
-function norm(v){return String(v??'').trim()}
-function num(v){const n=Number(v);return Number.isFinite(n)?n:0}
-function normIsin(v){return norm(v).toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/_\d+$/,'')}
-function fmtPct(v){return Number.isFinite(v)?v.toFixed(2)+'%':'—'}
-function fmtMoney(v){return Number.isFinite(v)?new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v):'—'}
-function makeId(){const d=new Date(),p=n=>String(n).padStart(2,'0');return 'PTC_'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())}
-async function workbookToRows(file){if(typeof XLSX==='undefined')throw new Error('Excel reader did not load. Refresh the page and try again.');const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array'});return{wb,sheets:Object.fromEntries(wb.SheetNames.map(s=>[s,XLSX.utils.sheet_to_json(wb.Sheets[s],{defval:null})]))}}
-function sheetRows(wb,name,headerRow=4){const ws=wb.Sheets[name];if(!ws)throw new Error(name+' sheet was not found in Combined Daily Allocation.');return XLSX.utils.sheet_to_json(ws,{range:headerRow-1,defval:null})}
-function combinedAccount(v){const u=norm(v).toUpperCase();return ACCOUNT_ORDER.find(a=>a===u)||null}
-function combinedState(ar,cr,sr,account){const s=sr.find(r=>combinedAccount(r.Account)===account);if(!s)throw new Error('No Summary row found for '+account+'.');const nav=num(s['Combined NAV EUR']);if(!nav)throw new Error('Combined NAV is zero for '+account+'.');const get=x=>ar.find(r=>combinedAccount(r.Account)===account&&norm(r['Asset Class'])===x),eq=get('Equities incl. Commodities'),fi=get('Fixed Income - Bonds'),alt=get('Alternatives'),mm=get('Money Markets');if(!eq||!fi||!alt||!mm)throw new Error('Required Allocation rows are missing for '+account+'.');const nonEur=cr.filter(r=>{const c=norm(r.Currency).toUpperCase();return combinedAccount(r.Account)===account&&c&&c!=='EUR'&&c!=='TOTAL'&&c!=='UNALLOCATED'}).reduce((x,r)=>x+num(r['Combined EUR']),0),rg=r=>({min:r['Min %']===null?null:num(r['Min %'])*100,max:r['Max %']===null?null:num(r['Max %'])*100});return{nav,eqcom:num(eq['Combined % NAV'])*100,fi:num(fi['Combined % NAV'])*100,alt:num(alt['Combined % NAV'])*100,mm:num(mm['Combined % NAV'])*100,fxPct:nonEur/nav*100,ranges:{eqcom:rg(eq),fi:rg(fi),alt:rg(alt),mm:rg(mm),fx:{min:0,max:70}}}}
-function combinedValuationDate(sr,assets){const r=sr.find(x=>norm(x.Item)==='Valuation Date');if(r&&r.Value)return String(r.Value);const a=assets.find(x=>x['Valuation Date']);return a?String(a['Valuation Date']):'—'}
-function bestMatch(rows,account,isin){const target=normIsin(isin);return rows.find(x=>combinedAccount(x.Account)===account&&normIsin(x['ISIN/Asset Key'])===target)||rows.find(x=>normIsin(x['ISIN/Asset Key'])===target)||null}
-function combinedClass(v){const c=norm(v);if(c==='Equities'||c==='Commodities'||c==='Equities incl. Commodities')return{cls:c,key:'eqcom'};if(c==='Fixed Income - Bonds')return{cls:c,key:'fi'};if(c==='Alternatives')return{cls:c,key:'alt'};return{cls:c||'Unknown',key:null}}
-function valueOrder(match,qty){if(!match)return{value:null,source:'Unpriced'};const p=num(match['Unit Price EUR']);if(p)return{value:Math.abs(qty)*Math.abs(p),source:'Combined Asset Detail'};const q=num(match.Quantity),v=num(match['Market Value EUR']);if(q&&v)return{value:Math.abs(qty)*Math.abs(v/q),source:'Combined Asset Detail fallback'};return{value:null,source:'Unpriced'}}
-const UBS_ACCOUNT_MAP={'0206-0000658778.S1':'ELE','0206-0000658780.S1':'ENV','0206-0000658773.S1':'ADV'};
-function accountFromSheet(s){const u=norm(s).toUpperCase();return ACCOUNT_ORDER.find(a=>u===a)||UBS_ACCOUNT_MAP[u]||null}
-function normalizeOrderRows(sheetName,rows){
- const account=accountFromSheet(sheetName);
- if(!account)return null;
- // Existing internal/trader format already parsed by row-1 headers.
- if(rows.some(r=>Object.prototype.hasOwnProperty.call(r,'Stex Order Group')))return [account,rows];
- // UBS EQ Upload template: XLSX parser used row 1 as keys; rebuild rows from worksheet rows 3+.
- const first=rows[0]||{};
- if(norm(first['UBS - EQ Order Upload Template'])!=='Mandatory')return [account,rows];
- const keys=Object.keys(first);
- const col0='UBS - EQ Order Upload Template';
- // Sheet-to-json has generated __EMPTY keys for the remaining columns.
- const headers=['Instrument name','ISIN','CCY','Side','Quantity (shares)','Limit','Account','Trading Place','Valid From (dd.mm.yyyy)','Valid until (dd.mm.yyyy)','Trader Text'];
- const headerRow=rows[1]||{};
- const colKeys=[col0,...keys.filter(k=>k!==col0)];
- // rows[1] is the real header row; rows[2...] are orders. Map UBS fields into the engine's canonical fields.
- const mapped=rows.slice(2).map(r=>{
-   const vals=colKeys.map(k=>r[k]);
-   return {'Stex Order Group':vals[3],'Quantity':vals[4],'Asset':vals[1],'Instrument name':vals[0],'CCY':vals[2],'Account':vals[6]};
- }).filter(r=>norm(r.Asset)&&num(r.Quantity)&&['buy','sell'].includes(norm(r['Stex Order Group']).toLowerCase()));
- return [account,mapped];
-}
-async function yahooQuote(isin){if(yahooCache.has(isin))return yahooCache.get(isin);try{const r=await fetch(YAHOO_API+'?isin='+encodeURIComponent(isin));const j=await r.json();if(!r.ok||!j.ok||!Number.isFinite(Number(j.price_eur)))throw new Error();yahooCache.set(isin,j);return j}catch(e){yahooCache.set(isin,null);return null}}
-function yahooClass(q){const k=norm(q?.allocation_class).toLowerCase();if(k==='fi')return{cls:'Yahoo inferred Fixed Income',key:'fi'};if(k==='alt')return{cls:'Yahoo inferred Alternatives',key:'alt'};return{cls:'Yahoo inferred Equities/Commodities',key:'eqcom'}}
-function manualClass(v){if(v==='eqcom')return{cls:'Manual Equities/Commodities',key:'eqcom'};if(v==='fi')return{cls:'Manual Fixed Income - Bonds',key:'fi'};if(v==='alt')return{cls:'Manual Alternatives',key:'alt'};return{cls:'Unknown',key:null}}
-function overrideKey(account,isin){return account+'|'+normIsin(isin)}
-function applyManualOrder(account,isin){
- const row=document.querySelector('tr[data-order-key="'+CSS.escape(overrideKey(account,isin))+'"]');
- if(!row)return;
- const price=Number(row.querySelector('.manual-price')?.value),assetClass=row.querySelector('.manual-class')?.value;
- if(!Number.isFinite(price)||price<=0||!assetClass){alert('Enter a positive EUR price per unit and select an asset class.');return}
- manualOverrides.set(overrideKey(account,isin),{price,assetClass});
- runCheck();
-}
-function controlResultPct(current,effect,c){const projected=current+effect;if(c.min===null||c.max===null)return{current,delta:effect,projected,headroom:null,status:'PASS'};const headroom=Math.min(projected-c.min,c.max-projected);return{current,delta:effect,projected,headroom,status:(projected>=c.min&&projected<=c.max)?'PASS':'FAIL'}}
-async function runCheck(){
- const pf=$('portfolio').files[0]||automaticPortfolio,of=$('orders').files[0];if(!pf||!of){setStatus(!pf?'Combined Daily Allocation is not loaded. Use automatic loading or the manual fallback.':'Please upload the Proposed Orders file.');return}
- $('runbtn').disabled=true;setStatus('Calculating…');try{
-  const p=await workbookToRows(pf),o=await workbookToRows(of),summaryRows=sheetRows(p.wb,'Summary'),allocationRows=sheetRows(p.wb,'Allocation'),currencyRows=sheetRows(p.wb,'Currency Allocation'),assetRows=sheetRows(p.wb,'Asset Detail'),sourceRows=sheetRows(p.wb,'Source Info',3);
-  const orderSheets=Object.entries(o.sheets).map(([x,r])=>normalizeOrderRows(x,r)).filter(Boolean),activeAccounts=[...new Set(orderSheets.map(x=>x[0]))];if(!activeAccounts.length)throw new Error('No recognized order sheets were found.');
-  const states={};for(const ac of activeAccounts)states[ac]=combinedState(allocationRows,currencyRows,summaryRows,ac);const deltas={};activeAccounts.forEach(ac=>deltas[ac]={eqcom:0,fi:0,alt:0,fx:0,mm:0});const orderDetails=[];let unpriced=0,reviewCount=0;
-  for(const[account,ors]of orderSheets){for(const r of ors){const side=norm(r['Stex Order Group']).toLowerCase(),qty=Math.abs(num(r.Quantity)),isin=normIsin(r.Asset);if(!['buy','sell'].includes(side)||!qty||!isin)continue;const match=bestMatch(assetRows,account,isin),cc=combinedClass(match?match['Asset Class']:''),description0=match?norm(match.Description):norm(r['Instrument name']);let cls=cc.cls,key=cc.key,vv=valueOrder(match,qty),description=description0,currency=match?norm(match.Currency).toUpperCase():norm(r.CCY).toUpperCase();if(vv.value===null){const y=await yahooQuote(isin);if(y){vv={value:qty*Number(y.price_eur),source:'Yahoo Finance ('+y.symbol+')'};description=description||norm(y.name||y.symbol);currency=currency||norm(y.currency).toUpperCase();if(!key){const yc=yahooClass(y);cls=yc.cls;key=yc.key}}}
-  if(vv.value===null){const mo=manualOverrides.get(overrideKey(account,isin));if(mo){const mc=manualClass(mo.assetClass);cls=mc.cls;key=mc.key;vv={value:qty*mo.price,source:'Manual input'};}}
-  const signed=vv.value===null?null:(side==='buy'?vv.value:-vv.value);let status='PRICED';if(vv.value===null){unpriced++;status='UNPRICED'}else if(!['fi','alt','eqcom'].includes(key)){reviewCount++;status='REVIEW'}else{deltas[account][key]+=signed;deltas[account].mm-=signed;if(currency&&currency!=='EUR')deltas[account].fx+=signed}orderDetails.push({account,side:side.toUpperCase(),isin,description,classification:cls,currency,quantity:qty,eur_value:vv.value,price_source:vv.source,status})}}
-  const reconciliation={};for(const ac of activeAccounts){const d=deltas[ac],residual=d.eqcom+d.fi+d.alt+d.mm;reconciliation[ac]={residual_eur:residual,residual_pct:states[ac].nav?residual/states[ac].nav*100:NaN,ok:Math.abs(residual)<0.01};if(!reconciliation[ac].ok)throw new Error('Trade allocation reconciliation failed for '+ac+': '+residual.toFixed(2)+' EUR residual.')}
-  const results=[];for(const ac of activeAccounts){const st=states[ac],d=deltas[ac];for(const c of CONTROLS){let current=0,effect=0,min=c.min,max=c.max;if(c.key==='eligible'||c.key==='conc'){}else if(c.key==='fx'){current=st.fxPct;effect=st.nav?(d.fx||0)/st.nav*100:NaN;min=st.ranges.fx.min;max=st.ranges.fx.max}else{current=st[c.key];effect=st.nav?(d[c.key]||0)/st.nav*100:NaN;min=st.ranges[c.key].min;max=st.ranges[c.key].max}results.push({account:ac,control:c.name,min,max,...controlResultPct(current,effect,{...c,min,max})})}}
-  render(activeAccounts,states,results,orderDetails,unpriced,reviewCount,pf.name,'',combinedValuationDate(sourceRows,assetRows),of.name,reconciliation);
- }catch(e){console.error(e);setStatus('Error: '+(e?.message||e))}finally{$('runbtn').disabled=false}
-}
-function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFile,allocationFile,allocDate,ordersFile,reconciliation){
- $('tbody').innerHTML=results.map(r=>`<tr data-account="${r.account}"><td><strong>${r.account}</strong></td><td>${r.control}</td><td class="num">${fmtPct(r.current)}</td><td class="num">${r.delta===null?'—':(r.delta>=0?'+':'')+fmtPct(r.delta)}</td><td class="num"><strong>${fmtPct(r.projected)}</strong></td><td class="num">${r.min===null?'—':r.min+'%'}</td><td class="num">${r.max===null?'—':r.max+'%'}</td><td class="num">${r.headroom===null?'—':fmtPct(r.headroom)}</td><td><span class="pill ${r.status==='PASS'?'pass':'fail'}">${r.status}</span></td></tr>`).join('');
- $('cards').innerHTML=ACCOUNT_ORDER.map(a=>{if(!accounts.includes(a))return`<div class="card"><h3>${a}</h3><div class="metric"><span>Overall</span><span class="pill neutral">NO ORDERS</span></div></div>`;const ar=results.filter(x=>x.account===a),issue=orders.some(o=>o.account===a&&o.status!=='PRICED'),ov=ar.every(x=>x.status==='PASS')?(issue?'REVIEW':'PASS'):'FAIL';return`<div class="card"><h3>${a}</h3><div class="metric"><span>NAV</span><strong>${fmtMoney(states[a].nav)}</strong></div><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill ${ov==='PASS'?'pass':ov==='REVIEW'?'pending':'fail'}">${ov}</span></div></div>`}).join('');
- $('orderbody').innerHTML=orders.map(o=>{
- const unresolved=o.status==='UNPRICED';
- const cls=unresolved?`<select class="manual-class" aria-label="Asset class for ${o.isin}"><option value="">Select asset class</option><option value="eqcom">Equities / Commodities</option><option value="fi">Fixed Income - Bonds</option><option value="alt">Alternatives</option></select>`:o.classification;
- const source=unresolved?`<input class="manual-price" type="number" min="0" step="any" placeholder="EUR price / unit" aria-label="EUR price per unit for ${o.isin}">`:o.price_source;
- const status=unresolved?`<button type="button" class="btn secondary manual-apply" data-account="${o.account}" data-isin="${o.isin}">Apply & Recalculate</button>`:`<span class="pill ${o.status==='PRICED'?'pass':'fail'}">${o.status}</span>`;
- return `<tr data-order-key="${overrideKey(o.account,o.isin)}"><td>${o.account}</td><td>${o.side}</td><td>${o.isin}</td><td>${o.description}</td><td>${cls}</td><td class="num">${o.quantity.toLocaleString()}</td><td class="num">${o.eur_value===null?'—':fmtMoney(o.eur_value)}</td><td>${source}</td><td>${status}</td></tr>`;
- }).join('');
- $('orderbody').querySelectorAll('.manual-apply').forEach(b=>b.addEventListener('click',()=>applyManualOrder(b.dataset.account,b.dataset.isin)));
- if(unpriced){
-   const first=$('orderbody').querySelector('tr:has(.manual-apply)');
-   setTimeout(()=>{
-     document.querySelector('.panel:nth-of-type(4)')?.scrollIntoView({behavior:'smooth',block:'start'});
-     first?.classList.add('manual-attention');
-     first?.querySelector('.manual-price')?.focus();
-     alert(unpriced+' new securit'+(unpriced===1?'y requires':'ies require')+' manual pricing and asset allocation in Table 4 – Order Valuation Detail. Enter the EUR price per unit, select the asset class, then click Apply & Recalculate.');
-   },50);
- }
- const overall=results.every(x=>x.status==='PASS')?((unpriced||reviewCount)?'REVIEW':'PASS'):'FAIL',id=makeId(),ts=new Date().toLocaleString();
- $('checkid').textContent=id;$('timestamp').textContent=ts;$('pfile').textContent=portfolioFile;$('adate').textContent=allocDate;$('ofile').textContent=ordersFile;$('accountschecked').textContent=accounts.join(', ');$('unpriced').textContent=unpriced;$('overall').textContent=overall;$('onedrivepdf').disabled=false;$('pdf').disabled=false;$('jsonbtn').disabled=false;
- setStatus(`Check completed: ${orders.length} orders processed. Overall ${overall}.`);
- lastRecord={check_id:id,timestamp:ts,portfolio_file:portfolioFile,allocation_file:allocationFile,allocation_date:allocDate,orders_file:ordersFile,accounts_checked:accounts,overall_result:overall,unpriced_orders:unpriced,review_orders:reviewCount,reconciliation,results,orders};
- $('archivestatus').textContent='READY TO SAVE';
-}
-
-function pdfBlobFromRecord(){
- if(!lastRecord)throw new Error('No completed check is available.');
- if(!window.jspdf?.jsPDF)throw new Error('PDF generator did not load.');
- const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
- const r=lastRecord;
- doc.setFontSize(16);doc.text('Allocation Range Pre-Trade Check',14,14);
- doc.setFontSize(9);
- doc.text('Check ID: '+r.check_id,14,21);
- doc.text('Date / Time: '+r.timestamp,14,26);
- doc.text('Combined Allocation: '+r.portfolio_file,14,31);
- doc.text('Allocation Date: '+r.allocation_date,14,36);
- doc.text('Orders File: '+r.orders_file,14,41);
- doc.text('Accounts: '+r.accounts_checked.join(', '),14,46);
- doc.text('Overall Result: '+r.overall_result+'   |   Unpriced: '+r.unpriced_orders+'   |   Review: '+r.review_orders,14,51);
-
- doc.setFontSize(11);doc.text('Projected Allocation Ranges',14,59);
- doc.autoTable({
-  startY:63,
-  head:[['Account','Control','Current','Trade Effect','Projected','Min','Max','Headroom','Status']],
-  body:r.results.map(x=>[
-   x.account,x.control,fmtPct(x.current),
-   x.delta===null?'—':(x.delta>=0?'+':'')+fmtPct(x.delta),
-   fmtPct(x.projected),x.min===null?'—':x.min+'%',x.max===null?'—':x.max+'%',
-   x.headroom===null?'—':fmtPct(x.headroom),x.status
-  ]),
-  styles:{fontSize:7,cellPadding:1.5},
-  headStyles:{fillColor:[23,50,77]},
-  margin:{left:14,right:14}
- });
- let y=doc.lastAutoTable.finalY+8;
- if(y>180){doc.addPage();y=14}
- doc.setFontSize(11);doc.text('Order Valuation Detail',14,y);
- doc.autoTable({
-  startY:y+4,
-  head:[['Account','Side','ISIN','Description','Classification','CCY','Quantity','EUR Value','Price Source','Status']],
-  body:r.orders.map(o=>[
-   o.account,o.side,o.isin,o.description||'',o.classification||'',o.currency||'',
-   Number(o.quantity).toLocaleString('en-GB'),
-   o.eur_value===null?'—':fmtMoney(o.eur_value),o.price_source,o.status
-  ]),
-  styles:{fontSize:7,cellPadding:1.4,overflow:'linebreak'},
-  headStyles:{fillColor:[23,50,77]},
-  columnStyles:{3:{cellWidth:45},4:{cellWidth:35}},
-  margin:{left:14,right:14}
- });
- const pages=doc.getNumberOfPages();
- for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFontSize(7);doc.text('Page '+p+' of '+pages,270,202)}
- return doc.output('blob');
-}
-async function findReportFolder(token){
- const site=await graphJson(
-  'https://graph.microsoft.com/v1.0/sites/'+MS365.hostname+':'+MS365.sitePath+'?$select=id',
-  token,
-  'SharePoint site lookup'
- );
-
- const drives=await graphJson(
-  'https://graph.microsoft.com/v1.0/sites/'+site.id+'/drives?$select=id,name',
-  token,
-  'Document library lookup'
- );
-
- const candidates=(drives.value||[]).filter(d=>!/teams wiki data/i.test(d.name));
- const drive=candidates.find(
-  d=>/freigegebene dokumente|shared documents|documents|dokumente/i.test(d.name)
- );
-
- if(!drive){
-  const names=(drives.value||[]).map(d=>d.name).join(', ');
-  throw new Error(
-   'Main SharePoint document library was not identified. Available libraries: '+names
-  );
- }
-
- // Exact SharePoint destination for Pre-Trade Check reports.
- // This corresponds to the Windows-synced folder:
- // Research & Development - Monthly performance  Advisory 1\Pre_Trade_Check_Reports
- const reportPath=[
-  'General',
-  'Performance live',
-  'Monthly performance  Advisory 1',
-  'Pre_Trade_Check_Reports'
- ];
-
- let parentId='root';
-
- for(const part of reportPath){
-
-  const url=parentId==='root'
-   ? 'https://graph.microsoft.com/v1.0/drives/'+drive.id+
-     '/root/children?$select=id,name,folder'
-   : 'https://graph.microsoft.com/v1.0/drives/'+drive.id+
-     '/items/'+parentId+'/children?$select=id,name,folder';
-
-  const children=await graphJson(
-   url,
-   token,
-   'Report folder lookup: '+part
-  );
-
-  const next=(children.value||[]).find(
-   x=>x.folder &&
-   norm(x.name).toLowerCase()===part.toLowerCase()
-  );
-
-  if(!next){
-   const items=(children.value||[])
-    .map(x=>(x.folder?'[folder] ':'[file] ')+x.name)
-    .slice(0,50);
-
-   throw new Error(
-    'Report folder path failed at "'+part+
-    '" in document library "'+drive.name+'". '+
-    (items.length
-     ? 'Items at this level: '+items.join(', ')
-     : 'No child items were returned at this level.')
-   );
-  }
-
-  parentId=next.id;
- }
-
- return{
-  drive,
-  folder:{
-   id:parentId,
-   name:'Pre_Trade_Check_Reports'
-  }
- };
-}
-async function archivePdfToSharePoint(){
- if(!lastRecord)return;
- const el=$('archivestatus'),btn=$('onedrivepdf');btn.disabled=true;el.textContent='SAVING…';
+(async()=>{
  try{
-  const token=await graphWriteToken();
-  const {drive,folder}=await findReportFolder(token);
-  const filename=archiveBaseName()+'.pdf',blob=pdfBlobFromRecord();
-  const url='https://graph.microsoft.com/v1.0/drives/'+drive.id+'/items/'+folder.id+':/'+encodeURIComponent(filename)+':/content';
-  const resp=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/pdf'},body:blob});
-  if(!resp.ok){
- let detail='';
- try{
-  const j=await resp.json();
-  detail=j?.error?.message||'';
- }catch(e){}
-
- // Diagnostic: inspect the scopes contained in the Microsoft Graph access token.
- let tokenScopes='Unable to read token scopes';
-
- try{
-  const parts=token.split('.');
-
-  if(parts.length>=2){
-   let payload=parts[1]
-    .replace(/-/g,'+')
-    .replace(/_/g,'/');
-
-   while(payload.length%4){
-    payload+='=';
-   }
-
-   const decoded=JSON.parse(atob(payload));
-
-   tokenScopes=decoded.scp
-    || (decoded.roles ? decoded.roles.join(', ') : 'No scp or roles claim found');
-  }
- }catch(e){
-  tokenScopes='Token scope diagnostic failed: '+e.message;
- }
-
- throw new Error(
-  'PDF upload failed ('+resp.status+')'
-  +(detail?': '+detail:'')
-  +' | Token scopes: '+tokenScopes
- );
-}
-  el.textContent='SAVED — '+filename;
-  setStatus('Check completed and PDF report saved to '+MS365.reportFolderName+': '+filename);
- }catch(e){
-  el.textContent='NOT SAVED';
-  setStatus('PDF was not saved to OneDrive: '+e.message+' Print / Save PDF Report remains available.');
- }finally{btn.disabled=false}
-}
-
-function filterRows(account,button){document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));button.classList.add('active');document.querySelectorAll('#tbody tr').forEach(r=>r.style.display=(account==='ALL'||r.dataset.account===account)?'':'none')}
-function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';return'PreTradeCheck_'+lastRecord.check_id.replace(/^PTC_/,'')+'_'+lastRecord.accounts_checked.join('-')}
-function savePdf(){if(!lastRecord)return;const old=document.title;document.title=archiveBaseName();window.print();setTimeout(()=>document.title=old,1000)}
-function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
-window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));
-window.addEventListener('unhandledrejection',e=>setStatus('JavaScript error: '+(e.reason?.message||e.reason)));
-$('runbtn').addEventListener('click',runCheck);$('autoload').addEventListener('click',loadLatestCombined);$('portfolio').addEventListener('change',()=>{if($('portfolio').files[0])setStatus('Manual Combined Daily Allocation selected: '+$('portfolio').files[0].name+'. This will override the automatically loaded file.')});$('onedrivepdf').addEventListener('click',archivePdfToSharePoint);$('pdf').addEventListener('click',savePdf);$('jsonbtn').addEventListener('click',exportJson);document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>filterRows(b.dataset.account,b)));
-$('cards').innerHTML=ACCOUNT_ORDER.map(a=>`<div class="card"><h3>${a}</h3><div class="metric"><span>Controls</span><strong>7</strong></div><div class="metric"><span>Overall</span><span class="pill neutral">NOT RUN</span></div></div>`).join('');
-setStatus('Application loaded. Loading latest Combined Daily Allocation automatically…');setTimeout(loadLatestCombined,150);
+  await authApp.initialize();
+  const redirectResult=await authApp.handleRedirectPromise();
+  const account=redirectResult?.account||authApp.getAllAccounts().find(a=>a.tenantId===TENANT_ID);
+  if(account)await loadProtectedApp(account);
+ }catch(e){setStatus('Authentication initialization failed: '+(e?.message||e),true)}
+})();
+signInBtn.addEventListener('click',signIn);
 </script>
 </body>
 </html>
