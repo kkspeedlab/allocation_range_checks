@@ -152,7 +152,31 @@ function normalizeOrderRows(sheetName,rows){
  }).filter(r=>norm(r.Asset)&&num(r.Quantity)&&['buy','sell'].includes(norm(r['Stex Order Group']).toLowerCase()));
  return [account,mapped];
 }
-async function yahooQuote(isin){if(yahooCache.has(isin))return yahooCache.get(isin);try{const r=await fetch(YAHOO_API+'?isin='+encodeURIComponent(isin));const j=await r.json();if(!r.ok||!j.ok||!Number.isFinite(Number(j.price_eur)))throw new Error();yahooCache.set(isin,j);return j}catch(e){yahooCache.set(isin,null);return null}}
+function normalizeYahooMinorCurrency(j){
+ const q={...j};
+ const c=norm(q.currency).toUpperCase();
+ // Yahoo/LSE commonly quotes sterling securities in GBp (pence), sometimes exposed as GBX.
+ // Convert minor-unit quotes to GBP before the application uses the EUR-converted price.
+ if(c==='GBX'||c==='GBPENCE'||c==='GBp'.toUpperCase()){
+  if(Number.isFinite(Number(q.price)))q.price=Number(q.price)/100;
+  if(Number.isFinite(Number(q.price_eur)))q.price_eur=Number(q.price_eur)/100;
+  q.currency='GBP';
+  q.quote_unit='GBP';
+  q.minor_unit_normalized=true;
+ }
+ return q;
+}
+async function yahooQuote(isin){
+ if(yahooCache.has(isin))return yahooCache.get(isin);
+ try{
+  const r=await fetch(YAHOO_API+'?isin='+encodeURIComponent(isin));
+  const raw=await r.json();
+  if(!r.ok||!raw.ok)throw new Error();
+  const j=normalizeYahooMinorCurrency(raw);
+  if(!Number.isFinite(Number(j.price_eur)))throw new Error();
+  yahooCache.set(isin,j);return j;
+ }catch(e){yahooCache.set(isin,null);return null}
+}
 function yahooClass(q){const k=norm(q?.allocation_class).toLowerCase();if(k==='fi')return{cls:'Yahoo inferred Fixed Income',key:'fi'};if(k==='alt')return{cls:'Yahoo inferred Alternatives',key:'alt'};return{cls:'Yahoo inferred Equities/Commodities',key:'eqcom'}}
 function manualClass(v){if(v==='eqcom')return{cls:'Manual Equities/Commodities',key:'eqcom'};if(v==='fi')return{cls:'Manual Fixed Income - Bonds',key:'fi'};if(v==='alt')return{cls:'Manual Alternatives',key:'alt'};return{cls:'Unknown',key:null}}
 function overrideKey(account,isin){return account+'|'+normIsin(isin)}
