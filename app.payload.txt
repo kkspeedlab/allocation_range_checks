@@ -213,15 +213,15 @@ async function runCheck(){
  }catch(e){console.error(e);setStatus('Error: '+(e?.message||e))}finally{$('runbtn').disabled=false}
 }
 function allocationCheckDate(filename,workbookDate){
- const m=String(filename||'').match(/Combined_Daily_Allocation_(20\\d{6})\\.xlsx$/i);
+ const m=String(filename||'').match(/Combined_Daily_Allocation_(20[0-9]{6})\.xlsx$/i);
  if(m){
   const raw=m[1],y=Number(raw.slice(0,4)),mo=Number(raw.slice(4,6)),d=Number(raw.slice(6,8));
   const dt=new Date(Date.UTC(y,mo-1,d));
   if(dt.getUTCFullYear()===y&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===d)return raw.slice(0,4)+'-'+raw.slice(4,6)+'-'+raw.slice(6,8);
  }
  const v=String(workbookDate||'').trim();
- if(/^20\\d{2}-\\d{2}-\\d{2}/.test(v))return v.slice(0,10);
- if(/^\\d{1,2}\\/\\d{1,2}\\/20\\d{2}$/.test(v))return v;
+ if(/^20[0-9]{2}-[0-9]{2}-[0-9]{2}/.test(v))return v.slice(0,10);
+ if(/^[0-9]{1,2}\/[0-9]{1,2}\/20[0-9]{2}$/.test(v))return v;
  return v&&v!=='—'?v:'UNKNOWN';
 }
 function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFile,allocationFile,allocDate,ordersFile,reconciliation,ordersModified){
@@ -401,12 +401,18 @@ async function complianceChild(token,driveId,parentId,name){
  throw new Error('Compliance folder not found: '+name+'. No PDF was uploaded.');
 }
 function complianceMonth(record){
- const date=record.trade_date;
- if(!date||!/^20\\d{6}$/.test(date))throw new Error('Trade filename must include a YYYYMMDD date to select the Compliance month.');
- const yyyy=Number(date.slice(0,4)),mm=Number(date.slice(4,6)),dd=Number(date.slice(6,8));
- const check=new Date(Date.UTC(yyyy,mm-1,dd));
- if(check.getUTCFullYear()!==yyyy||check.getUTCMonth()!==mm-1||check.getUTCDate()!==dd)throw new Error('Invalid trade date in XLSX filename.');
- return date.slice(0,4)+'-'+date.slice(4,6)+'-'+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mm-1];
+ const value=String(record.check_date||record.allocation_date||'').trim();
+ let year,month,day;
+ let m=value.match(/^(20[0-9]{2})-([0-9]{2})-([0-9]{2})$/);
+ if(m){year=Number(m[1]);month=Number(m[2]);day=Number(m[3]);}
+ else{
+  m=value.match(/^([0-9]{1,2})\/([0-9]{1,2})\/(20[0-9]{2})$/);
+  if(m){year=Number(m[3]);month=Number(m[2]);day=Number(m[1]);}
+ }
+ if(!year||!month||!day)throw new Error('Cannot determine Compliance month from Combined Daily Allocation check date: '+value);
+ const date=new Date(Date.UTC(year,month-1,day));
+ if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)throw new Error('Invalid Combined Daily Allocation check date: '+value);
+ return year+'-'+String(month).padStart(2,'0')+'-'+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1];
 }
 async function archivePdfToSharePoint(){
  if(!lastRecord)return;
