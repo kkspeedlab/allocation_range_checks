@@ -212,6 +212,18 @@ async function runCheck(){
   render(activeAccounts,states,results,orderDetails,unpriced,reviewCount,pf.name,'',combinedValuationDate(sourceRows,assetRows),of.name,reconciliation,of.lastModified);
  }catch(e){console.error(e);setStatus('Error: '+(e?.message||e))}finally{$('runbtn').disabled=false}
 }
+function allocationCheckDate(filename,workbookDate){
+ const m=String(filename||'').match(/Combined_Daily_Allocation_(20\\d{6})\\.xlsx$/i);
+ if(m){
+  const raw=m[1],y=Number(raw.slice(0,4)),mo=Number(raw.slice(4,6)),d=Number(raw.slice(6,8));
+  const dt=new Date(Date.UTC(y,mo-1,d));
+  if(dt.getUTCFullYear()===y&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===d)return raw.slice(0,4)+'-'+raw.slice(4,6)+'-'+raw.slice(6,8);
+ }
+ const v=String(workbookDate||'').trim();
+ if(/^20\\d{2}-\\d{2}-\\d{2}/.test(v))return v.slice(0,10);
+ if(/^\\d{1,2}\\/\\d{1,2}\\/20\\d{2}$/.test(v))return v;
+ return v&&v!=='—'?v:'UNKNOWN';
+}
 function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFile,allocationFile,allocDate,ordersFile,reconciliation,ordersModified){
  $('tbody').innerHTML=results.map(r=>`<tr data-account="${r.account}"><td><strong>${r.account}</strong></td><td>${r.control}</td><td class="num">${fmtPct(r.current)}</td><td class="num">${r.delta===null?'—':(r.delta>=0?'+':'')+fmtPct(r.delta)}</td><td class="num"><strong>${fmtPct(r.projected)}</strong></td><td class="num">${r.min===null?'—':r.min+'%'}</td><td class="num">${r.max===null?'—':r.max+'%'}</td><td class="num">${r.headroom===null?'—':fmtPct(r.headroom)}</td><td><span class="pill ${r.status==='PASS'?'pass':'fail'}">${r.status}</span></td></tr>`).join('');
  $('cards').innerHTML=accounts.map(a=>{const ar=results.filter(x=>x.account===a),issue=orders.some(o=>o.account===a&&o.status!=='PRICED'),ov=ar.every(x=>x.status==='PASS')?(issue?'REVIEW':'PASS'):'FAIL';return`<div class="card"><h3>${a}</h3><div class="metric"><span>NAV</span><strong>${fmtMoney(states[a].nav)}</strong></div><div class="metric"><span>Controls</span><strong>8</strong></div><div class="metric"><span>Overall</span><span class="pill ${ov==='PASS'?'pass':ov==='REVIEW'?'pending':'fail'}">${ov}</span></div></div>`}).join('');
@@ -234,10 +246,10 @@ function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFil
      alert(unpriced+' new securit'+(unpriced===1?'y requires':'ies require')+' manual pricing and asset allocation in Table 4 – Order Valuation Detail. Enter the EUR price per unit, select the asset class, set the multiplier (1 for ordinary securities), choose Derivative: Yes or No, then click Apply & Recalculate.');
    },50);
  }
- const overall=results.every(x=>x.status==='PASS')?((unpriced||reviewCount)?'REVIEW':'PASS'):'FAIL',id=makeId(),ts=new Date().toLocaleString();
- $('checkid').textContent=id;$('timestamp').textContent=ts;$('pfile').textContent=portfolioFile;$('adate').textContent=allocDate;$('ofile').textContent=ordersFile;$('accountschecked').textContent=accounts.join(', ');$('unpriced').textContent=unpriced;$('overall').textContent=overall;$('onedrivepdf').disabled=false;$('pdf').disabled=false;$('jsonbtn').disabled=false;
- setStatus(`Check completed for ${accounts[0]}: ${orders.length} orders processed. Overall ${overall}. Compliance SharePoint upload requires the folder web link.`);
- lastRecord={check_id:id,timestamp:ts,trade_file_last_modified:ordersModified?new Date(ordersModified).toISOString():null,trade_date:(ordersFile.match(/(?:19|20)\d{6}/)||[])[0]||null,portfolio_file:portfolioFile,allocation_file:allocationFile,allocation_date:allocDate,orders_file:ordersFile,accounts_checked:accounts,overall_result:overall,unpriced_orders:unpriced,review_orders:reviewCount,reconciliation,results,orders};
+ const overall=results.every(x=>x.status==='PASS')?((unpriced||reviewCount)?'REVIEW':'PASS'):'FAIL',id=makeId(),ts=new Date().toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'medium'}),checkDate=allocationCheckDate(portfolioFile,allocDate);
+ $('checkid').textContent=id;$('timestamp').textContent='Generated: '+ts;$('pfile').textContent=portfolioFile;$('adate').textContent=checkDate;$('ofile').textContent=ordersFile;$('accountschecked').textContent=accounts.join(', ');$('unpriced').textContent=unpriced;$('overall').textContent=overall;$('onedrivepdf').disabled=false;$('pdf').disabled=false;$('jsonbtn').disabled=false;
+ setStatus(`Check completed for ${accounts[0]}: ${orders.length} orders processed. Overall ${overall}. Check date: ${checkDate}.`);
+ lastRecord={check_id:id,timestamp:ts,check_date:checkDate,trade_file_last_modified:ordersModified?new Date(ordersModified).toISOString():null,trade_date:(ordersFile.match(/(?:19|20)\d{6}/)||[])[0]||null,portfolio_file:portfolioFile,allocation_file:allocationFile,allocation_date:checkDate,orders_file:ordersFile,accounts_checked:accounts,overall_result:overall,unpriced_orders:unpriced,review_orders:reviewCount,reconciliation,results,orders};
  $('archivestatus').textContent='READY TO SAVE';
 }
 
@@ -249,9 +261,9 @@ function pdfBlobFromRecord(){
  doc.setFontSize(16);doc.text('Allocation Range Pre-Trade Check',14,14);
  doc.setFontSize(9);
  doc.text('Check ID: '+r.check_id,14,21);
- doc.text('Date / Time: '+r.timestamp,14,26);
- doc.text('Combined Allocation: '+r.portfolio_file,14,31);
- doc.text('Allocation Date: '+r.allocation_date,14,36);
+ doc.text('Check Date (Allocation): '+r.check_date,14,26);
+ doc.text('Report Generated: '+r.timestamp,14,31);
+ doc.text('Combined Allocation: '+r.portfolio_file,14,36);
  doc.text('Orders File: '+r.orders_file,14,41);
  doc.text('Account: '+r.accounts_checked[0],14,46);
  doc.text('Overall Result: '+r.overall_result+'   |   Unpriced: '+r.unpriced_orders+'   |   Review: '+r.review_orders,14,51); doc.setFontSize(8); doc.text('Trade date: '+(r.trade_date||'not provided')+'  |  File last modified: '+(r.trade_file_last_modified||'not available'),14,55);
