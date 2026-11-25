@@ -156,15 +156,15 @@ function normalizeOrderRows(sheetName,rows){
  const mapped=rows.slice(2).map(r=>{
    const vals=colKeys.map(k=>r[k]);
    return {'Stex Order Group':vals[3],'Quantity':vals[4],'Asset':vals[1],'Instrument name':vals[0],'CCY':vals[2],'Account':vals[6]};
- }).filter(r=>norm(r.Asset)&&num(r.Quantity)&&['buy','sell'].includes(norm(r['Stex Order Group']).toLowerCase()));
+ }).filter(r=>Object.values(r).some(v=>norm(v)));
  return [account,mapped];
 }
 function normalizeYahooMinorCurrency(j){
  const q={...j};
- const c=norm(q.currency).toUpperCase();
+ const rawCurrency=norm(q.currency),c=rawCurrency.toUpperCase();
  // Yahoo/LSE commonly quotes sterling securities in GBp (pence), sometimes exposed as GBX.
  // Convert minor-unit quotes to GBP before the application uses the EUR-converted price.
- if(c==='GBX'||c==='GBPENCE'||c==='GBp'.toUpperCase()){
+ if(c==='GBX'||c==='GBPENCE'||rawCurrency==='GBp'){
   if(Number.isFinite(Number(q.price)))q.price=Number(q.price)/100;
   if(Number.isFinite(Number(q.price_eur)))q.price_eur=Number(q.price_eur)/100;
   q.currency='GBP';
@@ -186,14 +186,16 @@ async function yahooQuote(isin){
 }
 function yahooClass(q){const k=norm(q?.allocation_class).toLowerCase();if(k==='fi')return{cls:'Yahoo inferred Fixed Income',key:'fi'};if(k==='alt')return{cls:'Yahoo inferred Alternatives',key:'alt'};return{cls:'Yahoo inferred Equities/Commodities',key:'eqcom'}}
 function manualClass(v){if(v==='eqcom')return{cls:'Manual Equities/Commodities',key:'eqcom'};if(v==='fi')return{cls:'Manual Fixed Income - Bonds',key:'fi'};if(v==='alt')return{cls:'Manual Alternatives',key:'alt'};return{cls:'Unknown',key:null}}
-function overrideKey(account,isin){return account+'|'+normIsin(isin)}
+function overrideKey(account,isin){return account+'|'+isin}
+function descriptionMatch(rows,description){const n=v=>norm(v).toUpperCase().replace(/\s+/g,' ');const hits=rows.filter(x=>n(x.Description)===n(description)&&n(description));const ids=[...new Set(hits.map(x=>normIsin(x['ISIN/Asset Key'])).filter(Boolean))];return ids.length===1?ids[0]:'';}
+function derivativeAsset(x){return !!x&&/future|option|forward|swap|derivative/i.test([x['Asset Class'],x['Sub Asset Class'],x['Sub-Asset Class'],x['Asset Type'],x.Description].join(' '));}
 function applyManualOrder(account,isin){
  const row=document.querySelector('tr[data-order-key="'+CSS.escape(overrideKey(account,isin))+'"]');
  if(!row)return;
  const priceText=row.querySelector('.manual-price')?.value,multiplierText=row.querySelector('.manual-multiplier')?.value,derivative=row.querySelector('.manual-derivative')?.value;
  const price=Number(priceText),multiplier=Number(multiplierText),assetClass=row.querySelector('.manual-class')?.value;
  if(!priceText||!Number.isFinite(price)||price<=0||!multiplierText||!Number.isFinite(multiplier)||multiplier<=0||!assetClass||!['yes','no'].includes(derivative)){alert('Enter a positive EUR price, a positive multiplier, an asset class, and choose Derivative: Yes or No.');return}
- manualOverrides.set(overrideKey(account,isin),{price,multiplier,assetClass,derivative});
+ manualOverrides.set(overrideKey(account,isin),{price,multiplier,assetClass,derivative,isin:normIsin(row.querySelector('.manual-isin')?.value)});
  runCheck();
 }
 function controlResultPct(current,effect,c){const projected=current+effect;if(c.min===null||c.max===null)return{current,delta:effect,projected,headroom:null,status:'PASS'};const headroom=Math.min(projected-c.min,c.max-projected);return{current,delta:effect,projected,headroom,status:(projected>=c.min&&projected<=c.max)?'PASS':'FAIL'}}
@@ -203,14 +205,15 @@ async function runCheck(){
   const p=await workbookToRows(pf),o=await workbookToRows(of),summaryRows=sheetRows(p.wb,'Summary'),allocationRows=sheetRows(p.wb,'Allocation'),currencyRows=sheetRows(p.wb,'Currency Allocation'),assetRows=sheetRows(p.wb,'Asset Detail'),sourceRows=sheetRows(p.wb,'Source Info',3),derivativeRows=derivativeExposureRows(p.wb);
   const allOrderSheets=Object.entries(o.sheets).map(([x,r])=>normalizeOrderRows(x,r)).filter(Boolean); const activeAccounts=[...new Set(allOrderSheets.map(x=>x[0]))]; if(activeAccounts.length!==1||activeAccounts[0]!==selectedAccount)throw new Error('Account mismatch: selected '+selectedAccount+' but proposed trades contain '+(activeAccounts.join(', ')||'no recognized account')+'. No check was performed.'); const orderSheets=allOrderSheets; for(const [,rows] of orderSheets){for(const row of rows){const embedded=norm(row.Account).toUpperCase();const mapped=UBS_ACCOUNT_MAP[embedded]||ACCOUNT_ORDER.find(a=>a===embedded);if(embedded&&mapped!==selectedAccount)throw new Error('Trade account '+embedded+' does not match selected '+selectedAccount+'.');}}
   const states={};for(const ac of activeAccounts){states[ac]=combinedState(allocationRows,currencyRows,summaryRows,ac);states[ac].derivatives=derivativeState(derivativeRows,ac)}const deltas={};activeAccounts.forEach(ac=>deltas[ac]={eqcom:0,fi:0,alt:0,fx:0,mm:0,derivatives:0});const orderDetails=[];let unpriced=0,reviewCount=0;
-  for(const[account,ors]of orderSheets){for(const r of ors){const side=norm(r['Stex Order Group']).toLowerCase(),qty=Math.abs(num(r.Quantity)),isin=normIsin(r.Asset);if(!['buy','sell'].includes(side)||!qty||!isin)continue;const match=bestMatch(assetRows,account,isin),cc=combinedClass(match?match['Asset Class']:''),description0=match?norm(match.Description):norm(r['Instrument name']);let cls=cc.cls,key=cc.key,vv=valueOrder(match,qty),description=description0,currency=match?norm(match.Currency).toUpperCase():norm(r.CCY).toUpperCase();if(vv.value===null){const y=await yahooQuote(isin);if(y){vv={value:qty*Number(y.price_eur),source:'Yahoo Finance ('+y.symbol+')'};description=description||norm(y.name||y.symbol);currency=currency||norm(y.currency).toUpperCase();if(!key){const yc=yahooClass(y);cls=yc.cls;key=yc.key}}}
-  if(vv.value===null){const mo=manualOverrides.get(overrideKey(account,isin));if(mo){const mc=manualClass(mo.assetClass);cls=mc.cls;key=mc.key;vv={value:qty*mo.price*(mo.multiplier??1),source:'Manual input (multiplier '+(mo.multiplier??1)+')'};}}
-  const manual=manualOverrides.get(overrideKey(account,isin));const isDerivative=vv.source.startsWith('Manual input')&&manual?.derivative==='yes';
-  const signed=vv.value===null?null:(side==='buy'?vv.value:-vv.value);let status='PRICED';if(vv.value===null){unpriced++;status='UNPRICED'}else if(!['fi','alt','eqcom'].includes(key)){reviewCount++;status='REVIEW'}else{deltas[account][key]+=signed;if(isDerivative)deltas[account].derivatives+=signed;deltas[account].mm-=signed;if(currency&&currency!=='EUR')deltas[account].fx+=signed}orderDetails.push({account,side:side.toUpperCase(),isin,description,classification:cls,currency,quantity:qty,eur_value:vv.value,price_source:vv.source,is_derivative:isDerivative,multiplier:vv.source.startsWith('Manual input')?(manual?.multiplier??1):1,status})}}
+  let detected=0;for(const[account,ors]of orderSheets){for(const r of ors){if(!Object.values(r).some(v=>norm(v)))continue;detected++;const side=norm(r['Stex Order Group']).toLowerCase(),qty=Math.abs(num(r.Quantity)),inputDescription=norm(r['Instrument name']),orderKey='ROW'+detected;let isin=normIsin(r.Asset)||descriptionMatch(assetRows,inputDescription);if(!['buy','sell'].includes(side)||!qty||(!isin&&!inputDescription))throw new Error('Invalid order row '+detected+'; no check performed.');const manualEntry=manualOverrides.get(overrideKey(account,orderKey));if(manualEntry?.isin)isin=manualEntry.isin;const match=isin?bestMatch(assetRows,account,isin):null,cc=combinedClass(match?match['Asset Class']:''),description0=match?norm(match.Description):norm(r['Instrument name']);let cls=cc.cls,key=cc.key,vv=valueOrder(match,qty),description=description0,currency=match?norm(match.Currency).toUpperCase():norm(r.CCY).toUpperCase();if(vv.value===null&&isin&&!manualEntry){const y=await yahooQuote(isin);if(y){vv={value:qty*Number(y.price_eur),source:'Yahoo Finance ('+y.symbol+')'};description=description||norm(y.name||y.symbol);currency=currency||norm(y.currency).toUpperCase();if(!key){const yc=yahooClass(y);cls=yc.cls;key=yc.key}}}
+  if(vv.value===null||manualEntry){const mo=manualEntry;if(mo){const mc=manualClass(mo.assetClass);cls=mc.cls;key=mc.key;vv={value:qty*mo.price*(mo.multiplier??1),source:'Manual input (multiplier '+(mo.multiplier??1)+')'};}}
+  const manual=manualEntry;const isDerivative=manual?manual.derivative==='yes':derivativeAsset(match);
+  const signed=vv.value===null?null:(side==='buy'?vv.value:-vv.value);let status='PRICED';if(vv.value===null){unpriced++;status='UNPRICED'}else if(!['fi','alt','eqcom'].includes(key)){reviewCount++;status='REVIEW'}else{deltas[account][key]+=signed;if(isDerivative)deltas[account].derivatives+=signed;deltas[account].mm-=signed;if(currency&&currency!=='EUR')deltas[account].fx+=signed}orderDetails.push({account,orderKey,side:side.toUpperCase(),isin,description,classification:cls,currency,quantity:qty,eur_value:vv.value,price_source:vv.source,is_derivative:isDerivative,multiplier:vv.source.startsWith('Manual input')?(manual?.multiplier??1):1,status})}}
+  if(!detected||orderDetails.length!==detected)throw new Error('Order reconciliation failed: '+detected+' detected, '+orderDetails.length+' processed. No check performed.');
   const reconciliation={};for(const ac of activeAccounts){const d=deltas[ac],residual=d.eqcom+d.fi+d.alt+d.mm;reconciliation[ac]={residual_eur:residual,residual_pct:states[ac].nav?residual/states[ac].nav*100:NaN,ok:Math.abs(residual)<0.01};if(!reconciliation[ac].ok)throw new Error('Trade allocation reconciliation failed for '+ac+': '+residual.toFixed(2)+' EUR residual.')}
   const results=[];for(const ac of activeAccounts){const st=states[ac],d=deltas[ac];for(const c of CONTROLS){let current=0,effect=0,min=c.min,max=c.max;if(c.key==='derivatives'){current=st.derivatives.gross/st.derivatives.nav*100;effect=d.derivatives/st.derivatives.nav*100;min=0;max=50;if(st.derivatives.gross+d.derivatives<0)effect=-current;}else if(c.key==='fx'){current=st.fxPct;effect=st.nav?(d.fx||0)/st.nav*100:NaN;min=st.ranges.fx.min;max=st.ranges.fx.max}else{current=st[c.key];effect=st.nav?(d[c.key]||0)/st.nav*100:NaN;min=st.ranges[c.key].min;max=st.ranges[c.key].max}results.push({account:ac,control:c.name,min,max,...controlResultPct(current,effect,{...c,min,max})})}}
   render(activeAccounts,states,results,orderDetails,unpriced,reviewCount,pf.name,'',combinedValuationDate(sourceRows,assetRows),of.name,reconciliation,of.lastModified);
- }catch(e){console.error(e);setStatus('Error: '+(e?.message||e))}finally{$('runbtn').disabled=false}
+ }catch(e){lastRecord=null;for(const id of ['onedrivepdf','pdf','jsonbtn'])$(id).disabled=true;$('overall').textContent='ERROR';$('archivestatus').textContent='NOT SAVED';for(const id of ['tbody','cards','orderbody'])$(id).innerHTML='';console.error(e);setStatus('Error: '+(e?.message||e))}finally{$('runbtn').disabled=false}
 }
 function allocationCheckDate(filename,workbookDate){
  const m=String(filename||'').match(/Combined_Daily_Allocation_(20[0-9]{6})\.xlsx$/i);
@@ -233,8 +236,8 @@ function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFil
  const source=unresolved?`<input class="manual-price" type="number" min="0" step="any" placeholder="EUR price / unit" aria-label="EUR price per unit for ${o.isin}">`:o.price_source;
  const multiplier=unresolved?`<input class="manual-multiplier" type="number" min="0.00000001" step="any" value="1" style="width:90px" aria-label="Contract multiplier for ${o.isin}">`:(o.price_source.startsWith('Manual input')?(o.price_source.match(/multiplier ([\d.]+)/)?.[1]||'1'):'1');
  const derivative=unresolved?`<select class="manual-derivative" aria-label="Is ${o.isin} a derivative?"><option value="">Derivative? Select</option><option value="no">No</option><option value="yes">Yes</option></select>`:(o.is_derivative?'Yes':'No');
- const status=unresolved?`<button type="button" class="btn secondary manual-apply" data-account="${o.account}" data-isin="${o.isin}">Apply & Recalculate</button>`:`<span class="pill ${o.status==='PRICED'?'pass':'fail'}">${o.status}</span>`;
- return `<tr data-order-key="${overrideKey(o.account,o.isin)}"><td>${o.account}</td><td>${o.side}</td><td>${o.isin}</td><td>${o.description}</td><td>${cls}</td><td class="num">${o.quantity.toLocaleString()}</td><td>${multiplier}</td><td>${derivative}</td><td class="num">${o.eur_value===null?'—':fmtMoney(o.eur_value)}</td><td>${source}</td><td>${status}</td></tr>`;
+ const status=unresolved?`<button type="button" class="btn secondary manual-apply" data-account="${o.account}" data-isin="${o.orderKey}">Apply & Recalculate</button>`:`<span class="pill ${o.status==='PRICED'?'pass':'fail'}">${o.status}</span>`;
+ return `<tr data-order-key="${overrideKey(o.account,o.orderKey)}"><td>${o.account}</td><td>${o.side}</td><td>${unresolved?`<input class="manual-isin" placeholder="ISIN (optional)" value="${o.isin}">`:(o.isin||"—")}</td><td>${o.description}</td><td>${cls}</td><td class="num">${o.quantity.toLocaleString()}</td><td>${multiplier}</td><td>${derivative}</td><td class="num">${o.eur_value===null?'—':fmtMoney(o.eur_value)}</td><td>${source}</td><td>${status}</td></tr>`;
  }).join('');
  $('orderbody').querySelectorAll('.manual-apply').forEach(b=>b.addEventListener('click',()=>applyManualOrder(b.dataset.account,b.dataset.isin)));
  if(unpriced){
@@ -248,7 +251,7 @@ function render(accounts,states,results,orders,unpriced,reviewCount,portfolioFil
  }
  const overall=results.every(x=>x.status==='PASS')?((unpriced||reviewCount)?'REVIEW':'PASS'):'FAIL',id=makeId(),ts=new Date().toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'medium'}),checkDate=allocationCheckDate(portfolioFile,allocDate);
  $('checkid').textContent=id;$('timestamp').textContent='Generated: '+ts;$('pfile').textContent=portfolioFile;$('adate').textContent=checkDate;$('ofile').textContent=ordersFile;$('accountschecked').textContent=accounts.join(', ');$('unpriced').textContent=unpriced;$('overall').textContent=overall;$('onedrivepdf').disabled=false;$('pdf').disabled=false;$('jsonbtn').disabled=false;
- setStatus(`Check completed for ${accounts[0]}: ${orders.length} orders processed. Overall ${overall}. Check date: ${checkDate}.`);
+ setStatus(`Check completed for ${accounts[0]}: ${orders.length} orders detected and processed; ${orders.filter(o=>o.status==='PRICED').length} valued, ${unpriced} unpriced, ${reviewCount} review. Overall ${overall}. Check date: ${checkDate}.`);
  lastRecord={check_id:id,timestamp:ts,check_date:checkDate,trade_file_last_modified:ordersModified?new Date(ordersModified).toISOString():null,trade_date:(ordersFile.match(/(?:19|20)\d{6}/)||[])[0]||null,portfolio_file:portfolioFile,allocation_file:allocationFile,allocation_date:checkDate,orders_file:ordersFile,accounts_checked:accounts,overall_result:overall,unpriced_orders:unpriced,review_orders:reviewCount,reconciliation,results,orders};
  $('archivestatus').textContent='READY TO SAVE';
 }
