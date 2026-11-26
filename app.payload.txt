@@ -450,7 +450,7 @@ async function archivePdfToSharePoint(){
 }
 
 function filterRows(account,button){document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));button.classList.add('active');document.querySelectorAll('#tbody tr').forEach(r=>r.style.display=(account==='ALL'||r.dataset.account===account)?'':'none')}
-function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';const m=String(lastRecord.check_id).match(/^PTC_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/);if(!m)throw new Error('Invalid check timestamp for archive filename.');return 'PreTrade_'+lastRecord.accounts_checked[0]+'_'+m.slice(1).join('_');}
+function archiveBaseName(){if(!lastRecord)return'PreTradeCheck';const m=String(lastRecord.check_id).match(/^PTC_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/);if(!m)throw new Error('Invalid check timestamp for archive filename.');return 'PreTrade_'+lastRecord.accounts_checked[0]+'_'+m.slice(1,4).join('_')+'_'+m.slice(4,7).join('.');}
 function savePdf(){if(!lastRecord)return;if(lastRecord.accounts_checked.length!==1){setStatus('Cannot print a combined compliance report. Run a single-account check.');return}const old=document.title;document.title=archiveBaseName();window.print();setTimeout(()=>document.title=old,1000)}
 function exportJson(){if(!lastRecord)return;const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=archiveBaseName()+'.json';a.click();URL.revokeObjectURL(u)}
 window.addEventListener('error',e=>setStatus('JavaScript error: '+e.message));
