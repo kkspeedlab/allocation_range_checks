@@ -21,7 +21,7 @@
 <section class="panel"><div class="title">2. Accounts</div><div class="cards" id="cards"></div></section>
 <section class="panel"><div class="title">3. Projected Allocation Ranges</div><div class="filters"><button class="filter active" data-account="ALL">All</button><button class="filter" data-account="ELE">ELE</button><button class="filter" data-account="ADV">ADV</button><button class="filter" data-account="ENV">ENV</button><button class="filter" data-account="JOINT">JOINT</button><button class="filter" data-account="COMPANY">Company</button><button class="filter" data-account="PERSONAL">Personal</button></div><div class="scroll"><table><thead><tr><th>Account</th><th>Control</th><th class="num">Current</th><th class="num">Trade Effect</th><th class="num">Projected</th><th class="num">Min</th><th class="num">Max</th><th class="num">Headroom</th><th>Status</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
 <section class="panel"><div class="title">4. Order Valuation Detail</div><div class="scroll"><table><thead><tr><th>Account</th><th>Side</th><th>ISIN</th><th>Description</th><th>Classification</th><th class="num">Quantity</th><th>Multiplier</th><th>Derivative?</th><th class="num">EUR Value</th><th>Price Source</th><th>Status</th></tr></thead><tbody id="orderbody"></tbody></table></div></section>
-<section class="panel"><div class="title">5. Archive / Reporting</div><div class="reportgrid"><div class="field"><small>Check ID</small><strong id="checkid">Not generated</strong></div><div class="field"><small>Check Date / Time</small><strong id="timestamp">—</strong></div><div class="field"><small>Combined Allocation File</small><strong id="pfile">—</strong></div><div class="field"><small>Allocation Date</small><strong id="adate">—</strong></div><div class="field"><small>Orders File</small><strong id="ofile">—</strong></div><div class="field"><small>Accounts Checked</small><strong id="accountschecked">—</strong></div><div class="field"><small>Mandatory Controls</small><strong>6 per account</strong></div><div class="field"><small>Unpriced Orders</small><strong id="unpriced">—</strong></div><div class="field"><small>Overall Result</small><strong id="overall">NOT RUN</strong></div><div class="field"><small>Shared Report Archive</small><strong id="archivestatus">NOT SAVED</strong></div></div><div class="actions"><button id="onedrivepdf" class="btn primary" type="button" disabled>Save PDF to OneDrive</button><button id="pdf" class="btn secondary" type="button" disabled>Print / Save PDF Report</button><button id="jsonbtn" class="btn secondary" type="button" disabled>Export Calculation Record (JSON)</button></div></section>
+<section class="panel"><div class="title">5. Archive / Reporting</div><div class="reportgrid"><div class="field"><small>Check ID</small><strong id="checkid">Not generated</strong></div><div class="field"><small>Check Date / Time</small><strong id="timestamp">—</strong></div><div class="field"><small>Combined Allocation File</small><strong id="pfile">—</strong></div><div class="field"><small>Allocation Date</small><strong id="adate">—</strong></div><div class="field"><small>Orders File</small><strong id="ofile">—</strong></div><div class="field"><small>Accounts Checked</small><strong id="accountschecked">—</strong></div><div class="field"><small>Mandatory Controls</small><strong>6 per account</strong></div><div class="field"><small>Unpriced Orders</small><strong id="unpriced">—</strong></div><div class="field"><small>Overall Result</small><strong id="overall">NOT RUN</strong></div><div class="field"><small>Shared Report Archive</small><strong id="archivestatus">NOT SAVED</strong></div></div><div id="ordersarchive" role="status" aria-live="polite" class="statusline">Original orders Excel: not archived</div><div class="actions"><button id="onedrivepdf" class="btn primary" type="button" disabled>Save PDF to OneDrive</button><button id="pdf" class="btn secondary" type="button" disabled>Print / Save PDF Report</button><button id="jsonbtn" class="btn secondary" type="button" disabled>Export Calculation Record (JSON)</button></div></section>
 <section class="panel"><div class="title">6. Control Rules</div><p class="note">Equities incl. Commodities: 25–65%. Fixed Income – Bonds: 15–60%. Alternatives / Hedge Funds: 0–40%. Foreign Currencies: 0–70%. Money Market: 0–60%. Derivatives gross exposure: 0–50% of NAV. All six defined controls must PASS for an account to PASS.</p><p class="note"><strong>Current allocation source:</strong> Combined Daily Allocation supplies combined NAV, allocation, currency exposure, account ranges and held-asset EUR unit prices across HSBC, UBS and JPM. Yahoo is used only when an ISIN is absent from Asset Detail. Foreign-currency trade impact assumes non-EUR purchases are funded from EUR cash and non-EUR sale proceeds are converted back to EUR.</p></section>
 </main>
 <script>
@@ -202,7 +202,7 @@ function applyManualOrder(account,isin){
 function controlResultPct(current,effect,c){const projected=current+effect;if(c.min===null||c.max===null)return{current,delta:effect,projected,headroom:null,status:'PASS'};const headroom=Math.min(projected-c.min,c.max-projected);return{current,delta:effect,projected,headroom,status:(projected>=c.min&&projected<=c.max)?'PASS':'FAIL'}}
 async function runCheck(){
  const selectedAccount=$('checkaccount').value; if(!selectedAccount){setStatus('Select an account before running the check.');return} const pf=$('portfolio').files[0]||automaticPortfolio,of=$('orders').files[0];if(!pf||!of){setStatus(!pf?'Combined Daily Allocation is not loaded. Use automatic loading or the manual fallback.':'Please upload the Proposed Orders file.');return}
- if(manualOrderFile!==of){manualOverrides.clear();manualOrderFile=of;} lastRecord=null;for(const id of ['onedrivepdf','pdf','jsonbtn'])$(id).disabled=true;$('runbtn').disabled=true;setStatus('Calculating…');try{
+ if(manualOrderFile!==of){manualOverrides.clear();manualOrderFile=of;} lastRecord=null;$('ordersarchive').textContent='Original orders Excel: awaiting completed check';for(const id of ['onedrivepdf','pdf','jsonbtn'])$(id).disabled=true;$('runbtn').disabled=true;setStatus('Calculating…');try{
   const p=await workbookToRows(pf),o=await workbookToRows(of),summaryRows=sheetRows(p.wb,'Summary'),allocationRows=sheetRows(p.wb,'Allocation'),currencyRows=sheetRows(p.wb,'Currency Allocation'),assetRows=sheetRows(p.wb,'Asset Detail'),sourceRows=sheetRows(p.wb,'Source Info',3),derivativeRows=derivativeExposureRows(p.wb);
   const availableAccounts=[...new Set(Object.keys(o.sheets).map(accountFromSheet).filter(Boolean))]; const selectedSheets=Object.entries(o.sheets).filter(([name])=>accountFromSheet(name)===selectedAccount); if(selectedSheets.length!==1)throw new Error('Expected exactly one worksheet for '+selectedAccount+'; found '+selectedSheets.length+'. Available accounts: '+(availableAccounts.join(', ')||'none')+'. No check was performed.'); const orderSheets=selectedSheets.map(([name,rows])=>normalizeOrderRows(name,rows)); const activeAccounts=[selectedAccount]; for(const [,rows] of orderSheets){for(const row of rows){const embedded=norm(row.Account).toUpperCase();const mapped=UBS_ACCOUNT_MAP[embedded]||ACCOUNT_ORDER.find(a=>a===embedded);if(embedded&&mapped!==selectedAccount)throw new Error('Trade account '+embedded+' does not match selected '+selectedAccount+'.');}}
   const states={};for(const ac of activeAccounts){states[ac]=combinedState(allocationRows,currencyRows,summaryRows,ac);states[ac].derivatives=derivativeState(derivativeRows,ac)}const deltas={};activeAccounts.forEach(ac=>deltas[ac]={eqcom:0,fi:0,alt:0,fx:0,mm:0,derivatives:0});const orderDetails=[];let unpriced=0,reviewCount=0;
@@ -214,6 +214,7 @@ async function runCheck(){
   const reconciliation={};for(const ac of activeAccounts){const d=deltas[ac],residual=d.eqcom+d.fi+d.alt+d.mm;reconciliation[ac]={residual_eur:residual,residual_pct:states[ac].nav?residual/states[ac].nav*100:NaN,ok:Math.abs(residual)<0.01};if(!reconciliation[ac].ok)throw new Error('Trade allocation reconciliation failed for '+ac+': '+residual.toFixed(2)+' EUR residual.')}
   const results=[];for(const ac of activeAccounts){const st=states[ac],d=deltas[ac];for(const c of CONTROLS){let current=0,effect=0,min=c.min,max=c.max;if(c.key==='derivatives'){current=st.derivatives.gross/st.derivatives.nav*100;effect=d.derivatives/st.derivatives.nav*100;min=0;max=50;if(st.derivatives.gross+d.derivatives<0)effect=-current;}else if(c.key==='fx'){current=st.fxPct;effect=st.nav?(d.fx||0)/st.nav*100:NaN;min=st.ranges.fx.min;max=st.ranges.fx.max}else{current=st[c.key];effect=st.nav?(d[c.key]||0)/st.nav*100:NaN;min=st.ranges[c.key].min;max=st.ranges[c.key].max}results.push({account:ac,control:c.name,min,max,...controlResultPct(current,effect,{...c,min,max})})}}
   render(activeAccounts,states,results,orderDetails,unpriced,reviewCount,pf.name,'',combinedValuationDate(sourceRows,assetRows),of.name,reconciliation,of.lastModified);
+  if(lastRecord.overall_result==='PASS')await archiveOriginalOrders(of,lastRecord);else $('ordersarchive').textContent='Original orders Excel: not archived (check result '+lastRecord.overall_result+')';
  }catch(e){lastRecord=null;for(const id of ['onedrivepdf','pdf','jsonbtn'])$(id).disabled=true;$('overall').textContent='ERROR';$('archivestatus').textContent='NOT SAVED';for(const id of ['tbody','cards','orderbody'])$(id).innerHTML='';console.error(e);setStatus('Error: '+(e?.message||e))}finally{$('runbtn').disabled=false}
 }
 function allocationCheckDate(filename,workbookDate){
@@ -418,6 +419,56 @@ function complianceMonth(record){
  if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)throw new Error('Invalid Combined Daily Allocation check date: '+value);
  return year+'-'+String(month).padStart(2,'0')+'-'+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1];
 }
+
+async function ordersArchiveChild(token,driveId,parentId,name){
+ let url='https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/items/'+encodeURIComponent(parentId)+'/children?$select=id,name,folder,file,size&$top=200';
+ while(url){const data=await graphJson(url,token,'Orders archive folder lookup');const found=(data.value||[]).find(x=>String(x.name).toLowerCase()===name.toLowerCase());if(found)return found;url=data['@odata.nextLink']||null;}return null;
+}
+async function ordersArchiveMonth(token,driveId,parentId,name){
+ let item=await ordersArchiveChild(token,driveId,parentId,name);
+ if(!item){
+  const resp=await fetch('https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/items/'+encodeURIComponent(parentId)+'/children',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({name,folder:{},'@microsoft.graph.conflictBehavior':'fail'})});
+  if(resp.ok)item=await resp.json();else if(resp.status===409)item=await ordersArchiveChild(token,driveId,parentId,name);else throw new Error('Monthly folder creation failed ('+resp.status+')');
+ }
+ if(!item?.folder||!item.id)throw new Error('Monthly archive folder unavailable: '+name);return item;
+}
+async function verifyOriginalOrders(token,driveId,item,file){
+ if(!item.file||item.size!==file.size)return false;
+ const meta=await graphJson('https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/items/'+encodeURIComponent(item.id),token,'Existing workbook lookup');
+ const download=meta['@microsoft.graph.downloadUrl'];if(!download)throw new Error('Cannot verify existing workbook content');
+ const resp=await fetch(download,{cache:'no-store'});if(!resp.ok)throw new Error('Existing workbook download failed ('+resp.status+')');
+ const a=new Uint8Array(await file.arrayBuffer()),b=new Uint8Array(await resp.arrayBuffer());return a.length===b.length&&a.every((v,i)=>v===b[i]);
+}
+async function archiveOriginalOrders(file,record){
+ const el=$('ordersarchive');el.style.color='';el.textContent='Original orders Excel: archiving…';
+ try{
+  if(!/\.xlsx$/i.test(file.name))throw new Error('Expected an original .xlsx workbook');
+  const month=complianceMonth(record),token=await graphWriteToken();
+  const root=await findReportFolder(token),driveId=root.drive.id;
+  const parent=await ordersArchiveChild(token,driveId,root.folder.id,'RM-889 Pre Trade Checks');
+  if(!parent?.folder)throw new Error('RM-889 Pre Trade Checks folder not found in requested Research & Development library');
+  const folder=await ordersArchiveMonth(token,driveId,parent.id,month);
+  const existing=async()=>ordersArchiveChild(token,driveId,folder.id,file.name);
+  const confirmExisting=async item=>{if(!await verifyOriginalOrders(token,driveId,item,file))throw new Error('Filename conflict: existing workbook differs; no overwrite performed');el.style.color='var(--green)';el.textContent='Original orders Excel: ALREADY ARCHIVED — '+month+'/'+file.name;};
+  const prior=await existing();if(prior){await confirmExisting(prior);return;}
+  const base='https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/items/'+encodeURIComponent(folder.id)+':/'+encodeURIComponent(file.name)+':/createUploadSession';
+  const sessionResp=await fetch(base,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'fail',name:file.name}})});
+  if(sessionResp.status===409){const item=await existing();if(item){await confirmExisting(item);return;}}
+  if(!sessionResp.ok)throw new Error('Workbook upload session failed ('+sessionResp.status+')');
+  const session=await sessionResp.json();if(!session.uploadUrl)throw new Error('Upload session URL missing');
+  const chunk=10*320*1024;let saved=null;
+  for(let start=0;start<file.size;start+=chunk){
+   const end=Math.min(start+chunk,file.size);
+   const resp=await fetch(session.uploadUrl,{method:'PUT',headers:{'Content-Range':'bytes '+start+'-'+(end-1)+'/'+file.size},body:file.slice(start,end)});
+   if(resp.status===409){const item=await existing();if(item){await confirmExisting(item);return;}}
+   if(!resp.ok)throw new Error('Workbook upload failed ('+resp.status+')');
+   const data=await resp.json();if(resp.status===200||resp.status===201)saved=data;else if(resp.status!==202)throw new Error('Unexpected upload response');
+  }
+  if(!saved?.id||saved.name!==file.name||saved.size!==file.size)throw new Error('Upload did not confirm original filename and size');
+  el.style.color='var(--green)';el.textContent='Original orders Excel: SAVED — '+month+'/'+file.name;
+ }catch(e){el.style.color='var(--red)';el.textContent='Original orders Excel: NOT ARCHIVED — '+(e?.message||e)+'. Run the check again to retry; compliance result unchanged.';console.error(e);}
+}
+
 async function archivePdfToSharePoint(){
  if(!lastRecord)return;
  const el=$('archivestatus'),btn=$('onedrivepdf');
